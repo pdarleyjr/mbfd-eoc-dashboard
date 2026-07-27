@@ -5,7 +5,7 @@ services:
     image: postgres:13@sha256:4689940c683801b4ab839ab3b0a0a3555a5fe425371422310944e89eca7d8068
     container_name: mbfd-eoc-maxun-postgres
     restart: unless-stopped
-    env_file: .env
+    env_file: ${MAXUN_ENV_FILE:-.env}
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -24,7 +24,7 @@ services:
     image: redis:8-alpine@sha256:8096655e437712b07503796fb64d81359256cfcff0ab29d95a7da72863786efb
     container_name: mbfd-eoc-maxun-redis
     restart: unless-stopped
-    env_file: .env
+    env_file: ${MAXUN_ENV_FILE:-.env}
     command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     volumes:
       - redis-data:/data
@@ -40,7 +40,7 @@ services:
     image: minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     container_name: mbfd-eoc-maxun-minio
     restart: unless-stopped
-    env_file: .env
+    env_file: ${MAXUN_ENV_FILE:-.env}
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
       - minio-data:/data
@@ -82,7 +82,7 @@ services:
     container_name: eoc-maxun-backend
     restart: unless-stopped
     user: node
-    env_file: .env
+    env_file: ${MAXUN_ENV_FILE:-.env}
     command: ["sh", "-c", "npm run migrate && exec npm run server"]
     environment:
       NODE_ENV: production
@@ -134,7 +134,7 @@ services:
     image: getmaxun/maxun-frontend:v0.0.44@sha256:d01897f9d8660412731efdf1e5b91ad5bfd2e077da1e9f5eb47a889303750ce4
     container_name: mbfd-eoc-maxun-frontend
     restart: unless-stopped
-    env_file: .env
+    env_file: ${MAXUN_ENV_FILE:-.env}
     environment:
       FRONTEND_PORT: "5173"
       BACKEND_URL: http://eoc-maxun-backend:8080
