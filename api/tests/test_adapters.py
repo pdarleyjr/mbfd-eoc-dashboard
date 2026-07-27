@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
+from shapely.geometry import shape
 
 from app.adapters.arcgis import ArcGisAdapter, ArcGisSource
 from app.adapters.coops import CoopsAdapter
@@ -48,6 +50,25 @@ def test_arcgis_fixture_normalizes_point_and_fields() -> None:
     assert records[0].payload["STATUS"] == "Source-provided status"
 
 
+def test_arcgis_query_is_spatially_bounded_and_requests_only_required_fields() -> None:
+    source = ArcGisSource(
+        source_id="fixture",
+        source_name="Fixture",
+        url="https://example.gov/FeatureServer/0",
+        category="facility",
+        title_field="NAME",
+        observed_field="UPDATED",
+        include_fields=("STATUS", "NAME"),
+    )
+
+    query = parse_qs(urlparse(ArcGisAdapter(source).url).query)
+
+    assert query["geometry"] == ["-80.20,25.74,-80.10,25.89"]
+    assert query["spatialRel"] == ["esriSpatialRelIntersects"]
+    assert query["outFields"] == ["OBJECTID,NAME,UPDATED,STATUS"]
+    assert query["geometryPrecision"] == ["6"]
+
+
 def test_arcgis_empty_response_is_valid_empty_not_all_clear() -> None:
     source = ArcGisSource(
         source_id="fixture",
@@ -57,6 +78,25 @@ def test_arcgis_empty_response_is_valid_empty_not_all_clear() -> None:
         title_field="NAME",
     )
     assert ArcGisAdapter(source).normalize({"features": []}, "e" * 64) == []
+
+
+def test_arcgis_repairs_invalid_polygon_geometry() -> None:
+    bowtie = {
+        "rings": [
+            [
+                [-80.15, 25.76],
+                [-80.12, 25.79],
+                [-80.15, 25.79],
+                [-80.12, 25.76],
+                [-80.15, 25.76],
+            ]
+        ]
+    }
+
+    geography = ArcGisAdapter._geometry(bowtie)
+
+    assert geography["type"] == "MultiPolygon"
+    assert shape(geography).is_valid
 
 
 def test_arcgis_error_response_is_invalid() -> None:

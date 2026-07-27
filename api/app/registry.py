@@ -110,10 +110,11 @@ def _arcgis_sources() -> list[Adapter]:
                 source_id="miami-beach-flood-zones",
                 source_name="City of Miami Beach Flood Zones",
                 url=(
-                    "https://gis.miamibeachfl.gov/public/rest/services/gc/gc_FloodZones/MapServer/0"
+                    "https://gis.miamibeachfl.gov/public/rest/services/gc/"
+                    "gc_FloodZonesCounty/MapServer/0"
                 ),
                 category="flood_zone",
-                title_field="ZONE",
+                title_field="FLD_ZONE",
                 poll_interval_seconds=86400,
                 stale_threshold_seconds=172800,
             )
@@ -289,13 +290,13 @@ def _official_web_sources() -> list[Adapter]:
         OfficialWebSource(
             source_id="miami-beach-emergency-notifications",
             source_name="City of Miami Beach Emergency Notifications",
-            url="https://www.miamibeachfl.gov/city-hall/communications/emergency-notifications/",
+            url=("https://www.miamibeachfl.gov/city-hall/fire/emergency-management/notifications/"),
             selectors=("main article", "main .entry-content", "main"),
         ),
         OfficialWebSource(
             source_id="miami-beach-boil-water",
             source_name="City of Miami Beach Boil-Water Notices",
-            url="https://www.miamibeachfl.gov/city-hall/public-works/boil-water-notices/",
+            url="https://www.miamibeachfl.gov/boil-water-notice/",
             selectors=("main article", "main .entry-content", "main"),
             relevance_terms=("boil water", "miami beach", "33139", "33140"),
         ),
@@ -327,8 +328,8 @@ def _official_web_sources() -> list[Adapter]:
         ),
         OfficialWebSource(
             source_id="miami-beach-traffic-advisories",
-            source_name="City of Miami Beach Traffic Advisories",
-            url="https://www.miamibeachfl.gov/traffic-advisories/",
+            source_name="City of Miami Beach Road Closures",
+            url="https://www.miamibeachfl.gov/breakasweat/road-closures/",
             selectors=("main article", "main .entry-content", "main"),
             category="traffic_incident",
         ),

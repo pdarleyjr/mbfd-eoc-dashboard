@@ -4,6 +4,7 @@ from app.registry import source_registry
 def test_registry_has_no_duplicate_source_ids() -> None:
     sources = source_registry()
     ids = [source.source_id for source in sources]
+    assert len(sources) == 36
     assert len(ids) == len(set(ids))
 
 
@@ -33,3 +34,6 @@ def test_scraped_sources_are_marked_supplemental() -> None:
     ]
     assert scraped
     assert all(source.authority_level == "supplemental" for source in scraped)
+    assert all(source.url.startswith("https://") for source in scraped)
+    assert all("traffic-advisories" not in source.url for source in scraped)
+    assert all("communications/emergency-notifications" not in source.url for source in scraped)

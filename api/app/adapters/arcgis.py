@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
-from urllib.parse import quote_plus
+from urllib.parse import urlencode
+
+from shapely import make_valid
+from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, mapping, shape
+from shapely.ops import unary_union
 
 from app.errors import UpstreamSchemaError
 from app.geography import is_miami_beach_relevant
@@ -40,10 +44,38 @@ class ArcGisAdapter(Adapter):
         self.source = source
         self.source_id = source.source_id
         self.source_name = source.source_name
-        self.url = (
-            f"{source.url.rstrip('/')}/query?where={quote_plus(source.where)}"
-            "&outFields=*&returnGeometry=true&outSR=4326&f=json"
+        fields = list(
+            dict.fromkeys(
+                field
+                for field in (
+                    source.id_field,
+                    source.title_field,
+                    source.observed_field,
+                    source.expires_field,
+                    *source.include_fields,
+                )
+                if field
+            )
         )
+        query: dict[str, str] = {
+            "where": source.where,
+            "outFields": ",".join(fields),
+            "returnGeometry": "true",
+            "returnTrueCurves": "false",
+            "outSR": "4326",
+            "geometryPrecision": "6",
+            "f": "json",
+        }
+        if source.geographic_scope:
+            query.update(
+                {
+                    "geometry": "-80.20,25.74,-80.10,25.89",
+                    "geometryType": "esriGeometryEnvelope",
+                    "inSR": "4326",
+                    "spatialRel": "esriSpatialRelIntersects",
+                }
+            )
+        self.url = f"{source.url.rstrip('/')}/query?{urlencode(query)}"
         self.category = source.category
         self.authority_level = source.authority_level.value
         self.poll_interval_seconds = source.poll_interval_seconds
@@ -160,7 +192,22 @@ class ArcGisAdapter(Adapter):
                 "coordinates": paths[0] if len(paths) == 1 else paths,
             }
         if isinstance(value.get("rings"), list):
-            return {"type": "Polygon", "coordinates": value["rings"]}
+            polygon = shape({"type": "Polygon", "coordinates": value["rings"]})
+            if not polygon.is_valid:
+                polygon = make_valid(polygon)
+            if isinstance(polygon, GeometryCollection):
+                polygonal = [
+                    geometry
+                    for geometry in polygon.geoms
+                    if isinstance(geometry, (Polygon, MultiPolygon))
+                ]
+                if not polygonal:
+                    raise UpstreamSchemaError("ArcGIS polygon contains no usable area")
+                polygon = unary_union(polygonal)
+            normalized = json_safe(mapping(polygon))
+            if not isinstance(normalized, dict):
+                raise UpstreamSchemaError("ArcGIS polygon normalization failed")
+            return normalized
         return {}
 
     @staticmethod
