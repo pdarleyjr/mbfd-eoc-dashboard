@@ -1,3 +1,5 @@
+from urllib.parse import parse_qs, urlparse
+
 from app.registry import source_registry
 
 
@@ -37,3 +39,35 @@ def test_scraped_sources_are_marked_supplemental() -> None:
     assert all(source.url.startswith("https://") for source in scraped)
     assert all("traffic-advisories" not in source.url for source in scraped)
     assert all("communications/emergency-notifications" not in source.url for source in scraped)
+
+
+def test_road_sources_request_only_layer_specific_fields() -> None:
+    sources = {
+        source.source_id: set(parse_qs(urlparse(source.url).query)["outFields"][0].split(","))
+        for source in source_registry()
+        if source.source_id.startswith("fdem-fhp-") or source.source_id.startswith("fdem-fl511-")
+    }
+    assert sources["fdem-fhp-closures"] == {
+        "OBJECTID",
+        "INCIDENTID",
+        "TYPEEVENT",
+        "DATESTR",
+        "COUNTY",
+        "LOCATION",
+        "REMARKS",
+    }
+    assert sources["fdem-fhp-crashes"] == sources["fdem-fhp-closures"]
+    expected_fl511 = {
+        "OBJECTID",
+        "NAME",
+        "DESCRIPT",
+        "COUNTY",
+        "HIGHWAY",
+        "DIRECTION",
+        "SEVERITY",
+        "REPORTED",
+        "UPDATED",
+    }
+    assert all(
+        fields == expected_fl511 for source_id, fields in sources.items() if "fl511" in source_id
+    )

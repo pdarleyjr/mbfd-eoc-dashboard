@@ -13,13 +13,73 @@ def _road_sources() -> list[Adapter]:
         "https://services.arcgis.com/3wFbqsFPLeKqOlIK/arcgis/rest/services/"
         "Road_Closures/FeatureServer"
     )
+    fhp_fields = (
+        "INCIDENTID",
+        "TYPEEVENT",
+        "DATESTR",
+        "COUNTY",
+        "LOCATION",
+        "REMARKS",
+    )
+    fl511_fields = (
+        "NAME",
+        "DESCRIPT",
+        "COUNTY",
+        "HIGHWAY",
+        "DIRECTION",
+        "SEVERITY",
+        "REPORTED",
+        "UPDATED",
+    )
     definitions = [
-        (0, "fdem-fhp-closures", "FDEM / FHP Road Closures", "TYPEEVENT", "DATESTR"),
-        (1, "fdem-fhp-crashes", "FDEM / FHP Traffic Incidents", "TYPEEVENT", "DATESTR"),
-        (4, "fdem-fl511-crashes", "FDEM / FL511 Traffic Incidents", "NAME", "UPDATED"),
-        (5, "fdem-fl511-congestion", "FDEM / FL511 Congestion", "NAME", "UPDATED"),
-        (6, "fdem-fl511-construction", "FDEM / FL511 Construction", "NAME", "UPDATED"),
-        (7, "fdem-fl511-other", "FDEM / FL511 Other Incidents", "NAME", "UPDATED"),
+        (
+            0,
+            "fdem-fhp-closures",
+            "FDEM / FHP Road Closures",
+            "TYPEEVENT",
+            "DATESTR",
+            fhp_fields,
+        ),
+        (
+            1,
+            "fdem-fhp-crashes",
+            "FDEM / FHP Traffic Incidents",
+            "TYPEEVENT",
+            "DATESTR",
+            fhp_fields,
+        ),
+        (
+            4,
+            "fdem-fl511-crashes",
+            "FDEM / FL511 Traffic Incidents",
+            "NAME",
+            "UPDATED",
+            fl511_fields,
+        ),
+        (
+            5,
+            "fdem-fl511-congestion",
+            "FDEM / FL511 Congestion",
+            "NAME",
+            "UPDATED",
+            fl511_fields,
+        ),
+        (
+            6,
+            "fdem-fl511-construction",
+            "FDEM / FL511 Construction",
+            "NAME",
+            "UPDATED",
+            fl511_fields,
+        ),
+        (
+            7,
+            "fdem-fl511-other",
+            "FDEM / FL511 Other Incidents",
+            "NAME",
+            "UPDATED",
+            fl511_fields,
+        ),
     ]
     return [
         ArcGisAdapter(
@@ -32,23 +92,17 @@ def _road_sources() -> list[Adapter]:
                 observed_field=observed_field,
                 poll_interval_seconds=60,
                 stale_threshold_seconds=180,
-                include_fields=(
-                    "INCIDENTID",
-                    "TYPEEVENT",
-                    "COUNTY",
-                    "LOCATION",
-                    "REMARKS",
-                    "NAME",
-                    "DESCRIPT",
-                    "HIGHWAY",
-                    "DIRECTION",
-                    "SEVERITY",
-                    "REPORTED",
-                    "UPDATED",
-                ),
+                include_fields=include_fields,
             )
         )
-        for layer, source_id, source_name, title_field, observed_field in definitions
+        for (
+            layer,
+            source_id,
+            source_name,
+            title_field,
+            observed_field,
+            include_fields,
+        ) in definitions
     ]
 
 
