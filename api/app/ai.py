@@ -69,10 +69,15 @@ class OllamaNormalizer:
     ) -> GroundedExtraction:
         if not source_text.strip() or not source_record_ids:
             raise OllamaGroundingError("source text and record IDs are required")
+        schema = GroundedExtraction.model_json_schema()
         prompt = (
+            "Return JSON only, with no markdown or commentary. "
+            "The JSON MUST validate against this exact schema and MUST NOT contain "
+            f"other keys:\n{json.dumps(schema, separators=(',', ':'))}\n"
             "Extract only facts explicitly present in the public-source text. "
             "Never infer route status, facility status, restoration, occupancy, coordinates, "
             "or missing times. Cite only the provided source record IDs. "
+            "Use a verbatim substring of PUBLIC SOURCE TEXT for every supporting_text value. "
             f"Allowed source record IDs: {sorted(source_record_ids)}\n"
             f"PUBLIC SOURCE TEXT:\n{source_text[:24000]}"
         )
@@ -80,7 +85,7 @@ class OllamaNormalizer:
             "model": self.model,
             "stream": False,
             "think": False,
-            "format": GroundedExtraction.model_json_schema(),
+            "format": schema,
             "options": {"temperature": 0.1, "num_ctx": 32768},
             "messages": [{"role": "user", "content": prompt}],
         }

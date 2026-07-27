@@ -38,6 +38,10 @@ async def test_qwen_output_requires_grounded_source_evidence() -> None:
 
     assert extracted.evidence[0].source_record_id == "notice-1"
     assert route.calls[0].request.extensions["timeout"]["read"] == 240
+    request_payload = json.loads(route.calls[0].request.content)
+    assert request_payload["format"]["properties"]["classification"]
+    assert '"classification"' in request_payload["messages"][0]["content"]
+    assert "MUST NOT contain other keys" in request_payload["messages"][0]["content"]
     await normalizer.close()
 
 
