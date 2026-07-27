@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install '.[dev]'
+      - run: ruff format --check app tests scripts alembic
+      - run: ruff check app tests scripts alembic
+      - run: mypy app
+      - run: pytest -m 'not integration'
+
+  integration:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgis/postgis:16-3.5
+        env:
+          POSTGRES_DB: eoc_test
+          POSTGRES_USER: eoc_test
+          POSTGRES_PASSWORD: integration-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eoc_test -d eoc_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      EOC_DATABASE_URL: postgresql+asyncpg://eoc_test:integration-only-password@127.0.0.1:5432/eoc_test
+      EOC_RUN_INTEGRATION: '1'
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - run: python -m pip install '.[dev]'
+      - run: alembic upgrade head
+      - run: pytest -m integration --no-cov
+
+  frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:coverage
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  container:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: mbfd-eoc:ci
+          build-args: |
+            EOC_RELEASE_SHA=${{ github.sha }}
+            EOC_BUILD_ID=ci-${{ github.run_id }}
+
+  dependency-security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: python -m pip install 'pip-audit==2.10.0'
+      - run: python -m pip install ./api
+      - run: pip-audit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
