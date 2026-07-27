@@ -44,8 +44,8 @@ services:
       args:
         EOC_RELEASE_SHA: ${EOC_RELEASE_SHA:-development}
         EOC_BUILD_ID: ${EOC_BUILD_ID:-local}
-        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
-        VITE_GOOGLE_MAPS_MAP_ID: ${VITE_GOOGLE_MAPS_MAP_ID:-}
+        EOC_PUBLIC_MAPS_BROWSER_TOKEN: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        EOC_PUBLIC_MAPS_MAP_ID: ${VITE_GOOGLE_MAPS_MAP_ID:-}
     container_name: mbfd-eoc-api
     restart: unless-stopped
     env_file: .env

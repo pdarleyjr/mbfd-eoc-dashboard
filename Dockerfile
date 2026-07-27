@@ -2,17 +2,17 @@ FROM node:22.22.0-alpine AS web-build
 WORKDIR /build
 COPY package.json package-lock.json* ./
 COPY web/package.json web/package.json
-RUN npm install --ignore-scripts
+RUN npm ci --ignore-scripts
 COPY web web
-ARG VITE_GOOGLE_MAPS_API_KEY=""
-ARG VITE_GOOGLE_MAPS_MAP_ID=""
+ARG EOC_PUBLIC_MAPS_BROWSER_TOKEN=""
+ARG EOC_PUBLIC_MAPS_MAP_ID=""
 ARG EOC_RELEASE_SHA="development"
 ARG EOC_BUILD_ID="local"
-ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
-ENV VITE_GOOGLE_MAPS_MAP_ID=$VITE_GOOGLE_MAPS_MAP_ID
-ENV VITE_RELEASE_SHA=$EOC_RELEASE_SHA
-ENV VITE_BUILD_ID=$EOC_BUILD_ID
-RUN npm --workspace web run build
+RUN VITE_GOOGLE_MAPS_API_KEY="$EOC_PUBLIC_MAPS_BROWSER_TOKEN" \
+    VITE_GOOGLE_MAPS_MAP_ID="$EOC_PUBLIC_MAPS_MAP_ID" \
+    VITE_RELEASE_SHA="$EOC_RELEASE_SHA" \
+    VITE_BUILD_ID="$EOC_BUILD_ID" \
+    npm --workspace web run build
 
 FROM python:3.12.13-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \

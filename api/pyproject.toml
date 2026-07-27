@@ -19,7 +19,7 @@ dependencies = [
   "orjson==3.11.7",
   "prometheus-client==0.24.1",
   "pydantic==2.13.4",
-  "pydantic-settings==2.13.1",
+  "pydantic-settings==2.14.2",
   "python-dateutil==2.9.0.post0",
   "redis==7.1.0",
   "sentry-sdk[fastapi]==2.66.1",
