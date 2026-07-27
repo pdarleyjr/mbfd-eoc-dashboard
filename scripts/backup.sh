@@ -3,11 +3,13 @@ set -eu
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 project_dir="$(dirname "$script_dir")"
-if [ -f "${project_dir}/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "${project_dir}/.env"
-  set +a
+env_file="${project_dir}/.env"
+read_env() {
+  sed -n "s/^${1}=//p" "$env_file" | tail -n 1
+}
+if [ -f "$env_file" ]; then
+  POSTGRES_USER="${POSTGRES_USER:-$(read_env POSTGRES_USER)}"
+  POSTGRES_DB="${POSTGRES_DB:-$(read_env POSTGRES_DB)}"
 fi
 
 : "${POSTGRES_USER:?POSTGRES_USER is required}"
