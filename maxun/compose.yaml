@@ -83,7 +83,6 @@ services:
     restart: unless-stopped
     user: node
     env_file: ${MAXUN_ENV_FILE:-.env}
-    command: ["sh", "-c", "npm run migrate && exec npm run server"]
     environment:
       NODE_ENV: production
       DB_HOST: postgres
