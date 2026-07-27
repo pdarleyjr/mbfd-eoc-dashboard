@@ -1,0 +1,175 @@
+name: mbfd-eoc-maxun
+
+services:
+  postgres:
+    image: postgres:13@sha256:4689940c683801b4ab839ab3b0a0a3555a5fe425371422310944e89eca7d8068
+    container_name: mbfd-eoc-maxun-postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [maxun-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+
+  redis:
+    image: redis:8-alpine@sha256:8096655e437712b07503796fb64d81359256cfcff0ab29d95a7da72863786efb
+    container_name: mbfd-eoc-maxun-redis
+    restart: unless-stopped
+    env_file: .env
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    volumes:
+      - redis-data:/data
+    networks: [maxun-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+
+  minio:
+    image: minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    container_name: mbfd-eoc-maxun-minio
+    restart: unless-stopped
+    env_file: .env
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio-data:/data
+    networks: [maxun-internal]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+
+  browser:
+    image: getmaxun/maxun-browser:latest@sha256:8d78aff8d2d28d0fcefb9609c8326ccceb495149b4f79b6e178f5df2f0d24271
+    container_name: mbfd-eoc-maxun-browser
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      BROWSER_WS_PORT: "3001"
+      BROWSER_HEALTH_PORT: "3002"
+      BROWSER_WS_HOST: browser
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    networks: [maxun-internal, maxun-egress]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    shm_size: 2gb
+    mem_limit: 2g
+    cpus: 1.5
+    cap_add: [SYS_ADMIN]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=unconfined
+
+  backend:
+    image: getmaxun/maxun-backend:v0.0.44@sha256:5f986441487a2fa92c98937a8cf34786062326716f29dfab50c3fe4e35d68995
+    container_name: eoc-maxun-backend
+    restart: unless-stopped
+    user: node
+    env_file: .env
+    command: ["sh", "-c", "npm run migrate && exec npm run server"]
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      BACKEND_PORT: "8080"
+      BACKEND_URL: http://eoc-maxun-backend:8080
+      PUBLIC_URL: http://mbfd-eoc-maxun-frontend:5173
+      BROWSER_WS_HOST: browser
+      BROWSER_WS_PORT: "3001"
+      BROWSER_HEALTH_PORT: "3002"
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MAXUN_TELEMETRY: "false"
+      CI: "true"
+      CONTAINER: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [maxun-internal, maxun-egress, mbfd-ai]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      browser:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    mem_limit: 6g
+    cpus: 4
+    security_opt: ["no-new-privileges:true"]
+
+  frontend:
+    image: getmaxun/maxun-frontend:v0.0.44@sha256:d01897f9d8660412731efdf1e5b91ad5bfd2e077da1e9f5eb47a889303750ce4
+    container_name: mbfd-eoc-maxun-frontend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      FRONTEND_PORT: "5173"
+      BACKEND_URL: http://eoc-maxun-backend:8080
+      VITE_BACKEND_URL: http://eoc-maxun-backend:8080
+      PUBLIC_URL: http://mbfd-eoc-maxun-frontend:5173
+      VITE_PUBLIC_URL: http://mbfd-eoc-maxun-frontend:5173
+    networks: [maxun-internal]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 1g
+    cpus: 1
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+
+networks:
+  maxun-internal:
+    internal: true
+  maxun-egress:
+  mbfd-ai:
+    external: true
+    name: mbfd-ai

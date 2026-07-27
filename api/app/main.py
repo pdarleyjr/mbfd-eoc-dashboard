@@ -175,7 +175,7 @@ async def ready(request: Request) -> JSONResponse:
         if settings.maxun_enabled:
             try:
                 response = await client.get(
-                    f"{str(settings.maxun_url).rstrip('/')}/health",
+                    str(settings.maxun_url).rstrip("/"),
                     timeout=3,
                 )
                 checks["maxun"] = "healthy" if response.is_success else "unavailable"

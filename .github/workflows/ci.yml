@@ -86,6 +86,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Maxun deployment
+        run: docker compose --env-file maxun/.env.example -f maxun/compose.yaml config --quiet
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
