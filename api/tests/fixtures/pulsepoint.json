@@ -1,0 +1,20 @@
+{
+  "active": [
+    {
+      "id": "pp-sanitized-1",
+      "callTypeCode": "AF",
+      "callType": "Automatic Fire Alarm",
+      "address": "100 BLOCK SANITIZED AVE",
+      "receivedAt": "2026-07-27T13:20:00Z",
+      "lat": 25.7908,
+      "lng": -80.1301,
+      "units": [
+        {"id": "E1", "status": "Dispatched"}
+      ]
+    }
+  ],
+  "recent": [],
+  "fetchedAt": "2026-07-27T13:20:05Z",
+  "agency": "X1012",
+  "stale": false
+}

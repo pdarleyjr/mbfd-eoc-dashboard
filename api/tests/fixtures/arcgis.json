@@ -1,0 +1,22 @@
+{
+  "objectIdFieldName": "OBJECTID",
+  "geometryType": "esriGeometryPoint",
+  "spatialReference": {"wkid": 4326},
+  "fields": [
+    {"name": "OBJECTID", "type": "esriFieldTypeOID"},
+    {"name": "NAME", "type": "esriFieldTypeString"},
+    {"name": "STATUS", "type": "esriFieldTypeString"},
+    {"name": "UPDATED", "type": "esriFieldTypeDate"}
+  ],
+  "features": [
+    {
+      "attributes": {
+        "OBJECTID": 42,
+        "NAME": "Sanitized facility",
+        "STATUS": "Source-provided status",
+        "UPDATED": 1785168000000
+      },
+      "geometry": {"x": -80.1301, "y": 25.7908}
+    }
+  ]
+}

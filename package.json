@@ -1,0 +1,30 @@
+{
+  "name": "mbfd-eoc-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Miami Beach Emergency Management Dashboard",
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "build": "npm --workspace web run build",
+    "dev": "npm --workspace web run dev",
+    "format:check": "npm --workspace web run format:check",
+    "lint": "npm --workspace web run lint",
+    "test": "npm --workspace web run test",
+    "test:coverage": "npm --workspace web run test:coverage",
+    "test:e2e": "npm --workspace web run test:e2e",
+    "typecheck": "npm --workspace web run typecheck"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.8",
+    "minimatch": "10.2.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0"
+  }
+}

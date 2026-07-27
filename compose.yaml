@@ -1,0 +1,113 @@
+name: mbfd-eoc
+
+services:
+  eoc-postgres:
+    image: postgis/postgis:16-3.5-alpine
+    container_name: mbfd-eoc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - eoc-postgres-data:/var/lib/postgresql/data
+    networks: [eoc-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+
+  eoc-redis:
+    image: redis:8-alpine
+    container_name: mbfd-eoc-redis
+    restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - eoc-redis-data:/data
+    networks: [eoc-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+
+  eoc-api:
+    image: mbfd-eoc:${EOC_RELEASE_SHA:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        EOC_RELEASE_SHA: ${EOC_RELEASE_SHA:-development}
+        EOC_BUILD_ID: ${EOC_BUILD_ID:-local}
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        VITE_GOOGLE_MAPS_MAP_ID: ${VITE_GOOGLE_MAPS_MAP_ID:-}
+    container_name: mbfd-eoc-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      EOC_STATIC_DIR: /app/static
+    depends_on:
+      eoc-postgres:
+        condition: service_healthy
+      eoc-redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - eoc-snapshots:/app/data/raw-snapshots
+    ports:
+      - "127.0.0.1:8220:8220"
+    networks: [eoc-internal, mbfd-ai]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8220/health/ready', timeout=4).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+
+  eoc-worker:
+    image: mbfd-eoc:${EOC_RELEASE_SHA:-local}
+    container_name: mbfd-eoc-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    depends_on:
+      eoc-postgres:
+        condition: service_healthy
+      eoc-redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - eoc-snapshots:/app/data/raw-snapshots
+    networks: [eoc-internal, mbfd-ai]
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+
+volumes:
+  eoc-postgres-data:
+  eoc-redis-data:
+  eoc-snapshots:
+
+networks:
+  eoc-internal:
+    internal: true
+  mbfd-ai:
+    external: true

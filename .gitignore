@@ -1,0 +1,47 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+web/node_modules/
+web/dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Local data and runtime output
+data/
+backups/
+artifacts/
+raw-snapshots/
+*.sqlite
+*.sqlite3
+*.log
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json

@@ -1,0 +1,28 @@
+{
+  "@context": ["https://geojson.org/geojson-ld/geojson-context.jsonld"],
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "https://api.weather.gov/alerts/sanitized",
+      "type": "Feature",
+      "geometry": null,
+      "properties": {
+        "id": "urn:oid:sanitized",
+        "areaDesc": "Coastal Miami Dade County",
+        "sent": "2026-07-27T09:00:00-04:00",
+        "effective": "2026-07-27T09:00:00-04:00",
+        "expires": "2026-07-27T16:00:00-04:00",
+        "status": "Actual",
+        "messageType": "Alert",
+        "severity": "Moderate",
+        "certainty": "Likely",
+        "urgency": "Expected",
+        "event": "Coastal Flood Advisory",
+        "headline": "Sanitized Coastal Flood Advisory",
+        "description": "Sanitized official fixture text.",
+        "instruction": "Follow instructions from local officials."
+      }
+    }
+  ],
+  "title": "Current watches, warnings, and advisories"
+}

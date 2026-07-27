@@ -1,0 +1,372 @@
+from .adapters.arcgis import ArcGisAdapter, ArcGisSource
+from .adapters.base import Adapter
+from .adapters.coops import CoopsAdapter
+from .adapters.gtfs import MiamiDadeGtfsAdapter
+from .adapters.nhc import NhcCurrentStormsAdapter
+from .adapters.nws import NwsAlertsAdapter, NwsForecastAdapter
+from .adapters.pulsepoint import PulsePointAdapter
+from .adapters.web import OfficialWebAdapter, OfficialWebSource
+
+
+def _road_sources() -> list[Adapter]:
+    base = (
+        "https://services.arcgis.com/3wFbqsFPLeKqOlIK/arcgis/rest/services/"
+        "Road_Closures/FeatureServer"
+    )
+    definitions = [
+        (0, "fdem-fhp-closures", "FDEM / FHP Road Closures", "TYPEEVENT", "DATESTR"),
+        (1, "fdem-fhp-crashes", "FDEM / FHP Traffic Incidents", "TYPEEVENT", "DATESTR"),
+        (4, "fdem-fl511-crashes", "FDEM / FL511 Traffic Incidents", "NAME", "UPDATED"),
+        (5, "fdem-fl511-congestion", "FDEM / FL511 Congestion", "NAME", "UPDATED"),
+        (6, "fdem-fl511-construction", "FDEM / FL511 Construction", "NAME", "UPDATED"),
+        (7, "fdem-fl511-other", "FDEM / FL511 Other Incidents", "NAME", "UPDATED"),
+    ]
+    return [
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id=source_id,
+                source_name=source_name,
+                url=f"{base}/{layer}",
+                category="traffic_incident",
+                title_field=title_field,
+                observed_field=observed_field,
+                poll_interval_seconds=60,
+                stale_threshold_seconds=180,
+                include_fields=(
+                    "INCIDENTID",
+                    "TYPEEVENT",
+                    "COUNTY",
+                    "LOCATION",
+                    "REMARKS",
+                    "NAME",
+                    "DESCRIPT",
+                    "HIGHWAY",
+                    "DIRECTION",
+                    "SEVERITY",
+                    "REPORTED",
+                    "UPDATED",
+                ),
+            )
+        )
+        for layer, source_id, source_name, title_field, observed_field in definitions
+    ]
+
+
+def _arcgis_sources() -> list[Adapter]:
+    return [
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="miami-beach-lane-closures",
+                source_name="City of Miami Beach Active Lane Closures",
+                url=(
+                    "https://gis.miamibeachfl.gov/public/rest/services/gc/"
+                    "gc_LaneClosures/FeatureServer/0"
+                ),
+                category="lane_closure",
+                title_field="USER_main_address_line_1",
+                observed_field="last_edited_date",
+                expires_field="USER_expiration_date",
+                poll_interval_seconds=120,
+                stale_threshold_seconds=360,
+                include_fields=(
+                    "USER_status_desc",
+                    "USER_permit_number",
+                    "USER_description",
+                    "USER_main_address_line_1",
+                    "USER_main_address_line_2",
+                    "USER_issue_date",
+                    "USER_expiration_date",
+                    "last_edited_date",
+                ),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="miami-beach-stormwater-pumps",
+                source_name="Stormwater Pump Stations — Asset Inventory",
+                url=(
+                    "https://gis.miamibeachfl.gov/public/rest/services/gc/"
+                    "gc_Stormwater/FeatureServer/4"
+                ),
+                category="stormwater_pump_asset",
+                title_field="ASSET_ID",
+                observed_field="last_edited_date",
+                poll_interval_seconds=21600,
+                stale_threshold_seconds=86400,
+                include_fields=(
+                    "ASSET_ID",
+                    "ASSET_TYPE",
+                    "ASSET_ADDRESS",
+                    "address_ps",
+                    "Neighborhood",
+                    "OWNED_BY",
+                    "MAINT_BY",
+                    "last_edited_date",
+                ),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="miami-beach-flood-zones",
+                source_name="City of Miami Beach Flood Zones",
+                url=(
+                    "https://gis.miamibeachfl.gov/public/rest/services/gc/gc_FloodZones/MapServer/0"
+                ),
+                category="flood_zone",
+                title_field="ZONE",
+                poll_interval_seconds=86400,
+                stale_threshold_seconds=172800,
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="miami-beach-municipal-boundary",
+                source_name="Miami-Dade GIS — Miami Beach Municipal Boundary",
+                url=(
+                    "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/"
+                    "Municipal_Boundary_2/FeatureServer/0"
+                ),
+                category="municipal_boundary",
+                title_field="NAME",
+                where="NAME='MIAMI BEACH'",
+                poll_interval_seconds=86400,
+                stale_threshold_seconds=172800,
+                geographic_scope=False,
+                include_fields=("NAME", "MUNICUID", "MUNICID", "MODIFIEDDATE"),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="miami-dade-hurricane-evacuation-zones",
+                source_name="Miami-Dade Hurricane Evacuation Zones",
+                url=(
+                    "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/"
+                    "HurricaneEvacZone_gdb/FeatureServer/0"
+                ),
+                category="evacuation_zone",
+                title_field="ZONEID",
+                observed_field="MODIFYDATE",
+                poll_interval_seconds=86400,
+                stale_threshold_seconds=172800,
+                geographic_scope=False,
+                include_fields=("CATEGORY", "ZONEID", "COLOR", "MODIFYDATE"),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="miami-dade-hospitals",
+                source_name="Miami-Dade GIS Hospital Locations",
+                url=(
+                    "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/"
+                    "Hospital_gdb/FeatureServer/0"
+                ),
+                category="hospital",
+                title_field="NAME",
+                where="CITY='MIAMI BEACH' OR ZIPCODE IN ('33139','33140')",
+                poll_interval_seconds=86400,
+                stale_threshold_seconds=172800,
+                include_fields=("NAME", "ADDRESS", "CITY", "ZIPCODE", "PHONE"),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="fdem-florida-hotels",
+                source_name="FDEM / Florida DBPR Licensed Hotels",
+                url=(
+                    "https://services.arcgis.com/3wFbqsFPLeKqOlIK/arcgis/rest/services/"
+                    "Florida_Hotels/FeatureServer/0"
+                ),
+                category="hotel",
+                title_field="BUSINESS_NAME",
+                id_field="LICENSENO",
+                observed_field="LASTINSPDATE",
+                where="LL_CITY='MIAMI BEACH' OR LL_ZIP IN ('33139','33140')",
+                poll_interval_seconds=86400,
+                stale_threshold_seconds=172800,
+                include_fields=(
+                    "BUSINESS_NAME",
+                    "LL_ADDR1",
+                    "LL_ADDR2",
+                    "LL_CITY",
+                    "LL_ZIP",
+                    "LIC_TYPE",
+                    "LICENSENO",
+                    "UNITS",
+                    "EZone",
+                    "LASTINSPDATE",
+                ),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="fema-open-shelters",
+                source_name="FEMA National Shelter System — Open Shelters",
+                url="https://gis.fema.gov/arcgis/rest/services/NSS/OpenShelters/MapServer/0",
+                category="open_shelter",
+                title_field="shelter_name",
+                id_field="shelter_id",
+                where="state='FL'",
+                poll_interval_seconds=300,
+                stale_threshold_seconds=900,
+                geographic_scope=False,
+                include_fields=(
+                    "shelter_id",
+                    "shelter_name",
+                    "address",
+                    "city",
+                    "state",
+                    "zip",
+                    "shelter_status",
+                    "hours_open",
+                    "hours_close",
+                    "org_name",
+                    "ada_compliant",
+                    "pet_accommodations_code",
+                    "wheelchair_accessible",
+                ),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="miami-dade-evacuation-centers",
+                source_name="Miami-Dade Evacuation Center Inventory",
+                url=("https://giswspro.miamidade.gov/arcgis/rest/services/311/311CRM/MapServer/78"),
+                category="evacuation_center",
+                title_field="ShlName",
+                id_field="DataID",
+                observed_field="ModifyDate",
+                where="Zipcode IN ('33139','33140') OR City='MIAMI BEACH'",
+                poll_interval_seconds=21600,
+                stale_threshold_seconds=86400,
+                include_fields=(
+                    "ShlName",
+                    "Address",
+                    "City",
+                    "Zipcode",
+                    "ShlType",
+                    "SpeclNeed",
+                    "PetFrndly",
+                    "ModifyDate",
+                ),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="fdem-power-outage-miami-dade",
+                source_name="FDEM Florida Power Outage Summary — Miami-Dade",
+                url=(
+                    "https://services.arcgis.com/3wFbqsFPLeKqOlIK/arcgis/rest/services/"
+                    "Florida_Power_Outages_View/FeatureServer/0"
+                ),
+                category="power_outage_summary",
+                title_field="NAME",
+                observed_field="Updated",
+                where="NAME='Miami-Dade'",
+                poll_interval_seconds=300,
+                stale_threshold_seconds=900,
+                geographic_scope=False,
+                include_fields=(
+                    "NAME",
+                    "Customers_Total",
+                    "Customers_Out",
+                    "Pct_Out",
+                    "Updated",
+                ),
+            )
+        ),
+    ]
+
+
+def _official_web_sources() -> list[Adapter]:
+    sources = [
+        OfficialWebSource(
+            source_id="fpl-power-tracker",
+            source_name="FPL Power Tracker",
+            url="https://www.fpl.com/my-account/web-outage.html",
+            selectors=("main", "#main-content", "body"),
+            relevance_terms=("miami-dade", "miami beach", "outage"),
+        ),
+        OfficialWebSource(
+            source_id="miami-beach-emergency-notifications",
+            source_name="City of Miami Beach Emergency Notifications",
+            url="https://www.miamibeachfl.gov/city-hall/communications/emergency-notifications/",
+            selectors=("main article", "main .entry-content", "main"),
+        ),
+        OfficialWebSource(
+            source_id="miami-beach-boil-water",
+            source_name="City of Miami Beach Boil-Water Notices",
+            url="https://www.miamibeachfl.gov/city-hall/public-works/boil-water-notices/",
+            selectors=("main article", "main .entry-content", "main"),
+            relevance_terms=("boil water", "miami beach", "33139", "33140"),
+        ),
+        OfficialWebSource(
+            source_id="miami-dade-emergency-activation",
+            source_name="Miami-Dade Emergency Information",
+            url="https://www.miamidade.gov/global/emergency/activation/home.page",
+            selectors=("main article", "main .cmp-text", "main"),
+            relevance_terms=("activation", "emergency", "miami-dade", "miami beach"),
+        ),
+        OfficialWebSource(
+            source_id="miami-dade-transit-updates",
+            source_name="Miami-Dade Transit Service Updates",
+            url="https://www.miamidade.gov/transportation-publicworks/service_updates.asp",
+            selectors=("main article", "main .cmp-text", "main"),
+            category="transit",
+            relevance_terms=("miami beach", "route", "service", "metrobus", "trolley"),
+        ),
+        OfficialWebSource(
+            source_id="miami-dade-elevator-escalator",
+            source_name="Miami-Dade Elevator and Escalator Status",
+            url=(
+                "https://www.miamidade.gov/global/transportation/tracker/"
+                "elevator-escalator-status.page"
+            ),
+            selectors=("main table", "main .cmp-text", "main"),
+            category="transit",
+            relevance_terms=("elevator", "escalator", "service", "station"),
+        ),
+        OfficialWebSource(
+            source_id="miami-beach-traffic-advisories",
+            source_name="City of Miami Beach Traffic Advisories",
+            url="https://www.miamibeachfl.gov/traffic-advisories/",
+            selectors=("main article", "main .entry-content", "main"),
+            category="traffic_incident",
+        ),
+        OfficialWebSource(
+            source_id="official-causeway-advisories",
+            source_name="Miami-Dade Venetian Causeway Project Notices",
+            url=(
+                "https://www.miamidade.gov/global/transportation/public-works/"
+                "venetian-causeway.page"
+            ),
+            selectors=("main article", "main .cmp-text", "main"),
+            category="traffic_incident",
+            relevance_terms=("macarthur", "julia tuttle", "venetian", "causeway", "bridge"),
+        ),
+    ]
+    return [OfficialWebAdapter(source) for source in sources]
+
+
+def source_registry() -> list[Adapter]:
+    return [
+        PulsePointAdapter(),
+        NwsAlertsAdapter(),
+        NwsForecastAdapter(),
+        NwsForecastAdapter(hourly=True),
+        *[
+            CoopsAdapter(product)
+            for product in (
+                "water_level",
+                "predictions",
+                "air_temperature",
+                "water_temperature",
+                "wind",
+                "air_pressure",
+            )
+        ],
+        NhcCurrentStormsAdapter(),
+        *_road_sources(),
+        *_arcgis_sources(),
+        MiamiDadeGtfsAdapter(),
+        *_official_web_sources(),
+    ]
