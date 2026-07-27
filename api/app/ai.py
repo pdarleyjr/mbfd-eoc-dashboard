@@ -90,7 +90,7 @@ class OllamaNormalizer:
                 response = await self.client.post(
                     f"{self.base_url}/api/chat",
                     json=payload,
-                    timeout=90,
+                    timeout=240,
                 )
                 response.raise_for_status()
                 content = response.json().get("message", {}).get("content")

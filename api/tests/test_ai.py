@@ -26,7 +26,7 @@ async def test_qwen_output_requires_grounded_source_evidence() -> None:
         "missing_fields": ["expiration"],
         "validation_status": "grounded",
     }
-    respx.post("http://ollama:11434/api/chat").mock(
+    route = respx.post("http://ollama:11434/api/chat").mock(
         return_value=httpx.Response(
             200,
             json={"message": {"content": json.dumps(result)}},
@@ -37,6 +37,7 @@ async def test_qwen_output_requires_grounded_source_evidence() -> None:
     extracted = await normalizer.extract(source, {"notice-1"})
 
     assert extracted.evidence[0].source_record_id == "notice-1"
+    assert route.calls[0].request.extensions["timeout"]["read"] == 240
     await normalizer.close()
 
 
