@@ -9,9 +9,11 @@ from redis.asyncio import Redis
 
 from .adapters.base import Adapter
 from .config import get_settings
+from .database import SessionFactory
 from .ingestion import IngestionRunner
 from .logging_config import configure_logging
 from .registry import source_registry
+from .repository import Repository
 
 logger = structlog.get_logger()
 
@@ -28,6 +30,13 @@ def misfire_grace_seconds(adapter: Adapter) -> int:
     )
 
 
+async def reconcile_configured_sources(adapters: list[Adapter]) -> None:
+    async with SessionFactory() as session:
+        await Repository(session).retire_unconfigured_sources(
+            {adapter.source_id for adapter in adapters}
+        )
+
+
 async def main() -> None:
     configure_logging()
     settings = get_settings()
@@ -37,6 +46,7 @@ async def main() -> None:
         runner = IngestionRunner(redis, client, settings)
         scheduler = AsyncIOScheduler(timezone="UTC")
         adapters = source_registry()
+        await reconcile_configured_sources(adapters)
 
         async def poll(adapter: Adapter) -> None:
             await runner.run(adapter)

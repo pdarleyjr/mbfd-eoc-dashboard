@@ -428,6 +428,13 @@ test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
   expect(sourceHealthBox.width).toBeGreaterThanOrEqual(44)
   expect(sourceHealthBox.height).toBeGreaterThanOrEqual(44)
 
+  for (const label of ['MacArthur', 'Julia Tuttle', 'Venetian', 'Reset map to Miami Beach']) {
+    const quickFocusBox = await page.getByRole('button', {name: label}).boundingBox()
+    expect(quickFocusBox, `${label} quick-focus control has no layout box`).not.toBeNull()
+    expect(quickFocusBox?.width).toBeGreaterThanOrEqual(44)
+    expect(quickFocusBox?.height).toBeGreaterThanOrEqual(44)
+  }
+
   if (testInfo.project.name === 'tablet-landscape' || testInfo.project.name === 'webkit-1440') {
     // Touch emulation does not consistently synthesize hardware-Tab navigation.
     // Programmatic focus still proves the skip link remains focusable for paired keyboards.

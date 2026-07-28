@@ -2,7 +2,7 @@ import json
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -217,6 +217,25 @@ class Repository:
     async def delete_source_records(self, source_id: str) -> None:
         await self.session.execute(
             delete(CanonicalRecordRow).where(CanonicalRecordRow.source_id == source_id)
+        )
+        await self.session.commit()
+
+    async def retire_unconfigured_sources(self, configured_source_ids: set[str]) -> None:
+        """Retire data and health rows left by sources removed from the registry."""
+        if not configured_source_ids:
+            raise ValueError("At least one configured source is required")
+        source_ids = sorted(configured_source_ids)
+        await self.session.execute(
+            update(CanonicalRecordRow)
+            .where(CanonicalRecordRow.source_id.not_in(source_ids))
+            .values(
+                expires_at=datetime.now(UTC),
+                stale=True,
+                stale_reason="Source is no longer configured",
+            )
+        )
+        await self.session.execute(
+            delete(SourceHealthRow).where(SourceHealthRow.source_id.not_in(source_ids))
         )
         await self.session.commit()
 

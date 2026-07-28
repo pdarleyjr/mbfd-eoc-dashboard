@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from app.models import CanonicalRecordRow, SourceHealthRow
 from app.repository import Repository, _record_values
 from app.schemas import (
@@ -193,6 +195,37 @@ async def test_mutation_helpers_commit_expected_statements() -> None:
 
     assert session.commits == 4
     assert len(session.executed) == 3
+
+
+async def test_retire_unconfigured_sources_expires_records_and_deletes_health() -> None:
+    session = FakeSession()
+    repository = Repository(session)  # type: ignore[arg-type]
+
+    await repository.retire_unconfigured_sources({"configured-b", "configured-a"})
+
+    assert session.commits == 1
+    assert len(session.executed) == 2
+    record_statement, health_statement = session.executed
+    record_params = record_statement.compile().params
+    health_params = health_statement.compile().params
+    assert record_statement.table.name == "canonical_records"
+    assert health_statement.table.name == "source_health"
+    assert record_params["source_id_1"] == ["configured-a", "configured-b"]
+    assert health_params["source_id_1"] == ["configured-a", "configured-b"]
+    assert record_params["stale"] is True
+    assert record_params["stale_reason"] == "Source is no longer configured"
+    assert record_params["expires_at"] is not None
+
+
+async def test_retire_unconfigured_sources_rejects_empty_registry() -> None:
+    session = FakeSession()
+    repository = Repository(session)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="configured source"):
+        await repository.retire_unconfigured_sources(set())
+
+    assert session.executed == []
+    assert session.commits == 0
 
 
 def test_record_values_builds_postgis_expression() -> None:

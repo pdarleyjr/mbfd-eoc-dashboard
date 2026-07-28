@@ -1,5 +1,107 @@
 # Final Implementation Report
 
+## 2026-07-28 operational-map and EIA completion
+
+This section supersedes older implementation evidence retained below for audit
+history. It contains no credential values. The final release SHA and CI run for
+the commit containing this report are recorded in the release handoff because a
+Git commit cannot embed its own not-yet-created identity.
+
+### Implementation and verified candidate
+
+- Operational-map/EIA implementation commit:
+  `e5e2ab36f9909763f1e60248593573e5301db246`
+- Source tree:
+  `eccfc6b63594fe64f8d6997531e58d36081d0a1b`
+- Green CI:
+  `https://github.com/pdarleyjr/mbfd-eoc-dashboard/actions/runs/30377588635`
+- Immutable archive SHA-256:
+  `5cd6583eb75b1e2913a3823d5104f239d62b1b499df9c7b56208bdb8818ba8c5`
+- Production build:
+  `prod-20260728T162955Z-e5e2ab36`
+- Production image:
+  `sha256:ca99ec558d8b658e61acbbf0ac8a6748175cf378aaf65eed96c736271e2f1192`
+- Rollback retained at:
+  `/opt/mbfd/releases/eoc/rollback-742d960c-eia-20260728T165007Z`
+
+CI passed backend, PostGIS integration, frontend, Chromium/WebKit Playwright,
+container/Maxun, npm and Python dependency audits, and gitleaks. The local
+release gate passed 78 backend tests with one explicit PostGIS integration skip,
+88.42% branch-aware coverage, Ruff, strict mypy, TypeScript, ESLint, Vitest,
+production build, and targeted Playwright regression coverage.
+
+### Delivered corrections
+
+- Leaflet/OpenStreetMap provides a visible keyless operational map while Google
+  remains optional. It renders clustered points, authoritative lines/polygons,
+  layer toggles, causeway focus, selection synchronization, keyboard actions,
+  and visible OpenStreetMap attribution.
+- PulsePoint cards render call type/code, active/recent and live/stale state,
+  address, call time, units, unit status, overflow count, coordinate status, and
+  the non-CAD disclaimer. Card selection focuses and highlights the mapped
+  incident; the detail drawer renders structured advisory units.
+- Road cards render location, status, concise source text, permit, applicable
+  start/end times, freshness, authority, and a details action.
+- Official-notice extraction removes observed `ls:begin`, `ls:end`, and trailing
+  `HTML` artifacts, produces deterministic concise titles, and preserves clean
+  source text for details.
+- Short desktop and responsive layouts make the bottom panels reachable rather
+  than clipping them. Exact regression profiles include 1920×1080, 1858×970,
+  1920×900, 1366×768, 1180×820, 390×844, reduced motion, and WebKit.
+- A production browser probe found that Fluent `size="small"` left the map
+  quick-focus buttons only 24 px tall on a fine-pointer desktop. A red
+  Playwright regression reproduced it; all four causeway/reset controls now
+  enforce 44×44 minimum targets.
+
+### EIA integration and truth boundary
+
+The obsolete `fdem-power-outage-miami-dade` and static `fpl-power-tracker`
+definitions are removed. The server-only EIA credential is stored in the
+mode-0600 production environment and is never embedded in Vite assets, snapshots,
+logs, this report, or repository content.
+
+Live pre-deployment contract checks and fresh production worker polls succeeded
+for:
+
+- `eia-fpl-demand` (`D`);
+- `eia-fpl-day-ahead-demand-forecast` (`DF`);
+- `eia-fpl-net-generation` (`NG`).
+
+The observed responses contained numeric `megawatthours` values, periods,
+respondent `FPL`, and the geographic scope `Florida Power & Light balancing
+authority`. Recursively sanitized snapshot bodies contained zero `api_key`
+fields. The UI and canonical payload state that these are regional grid
+indicators, not Miami Beach customer-outage counts.
+
+The first production poll exposed two historical health rows left by the removed
+adapters: the registry contained 43 sources while PostgreSQL returned 45 health
+rows. The containing release now reconciles the database against the configured
+registry at worker startup. Records from removed sources are expired and marked
+stale, their health rows are deleted, raw snapshots remain available for
+provenance, and an empty registry is rejected to prevent accidental mass
+retirement.
+
+### Backup, deployment, and acceptance boundaries
+
+A fresh checksum-verified backup is retained at
+`/opt/mbfd/backups/eoc-dashboard/20260728T162556Z`. Its isolated restore
+returned 8,117 records, 4,468 geometry rows, zero invalid geometries, PostGIS
+3.5.7, and 8,516 snapshot files totaling 184,450,322 bytes. The temporary
+database and volume were removed after verification.
+
+The release uses a stage/swap deployment with an automatic rollback trap. An
+initial activation correctly rolled back because HTTP readiness preceded
+Docker's `healthy` state by several seconds. The corrected gate waits for both
+application readiness and container health before accepting the swap; no
+partial release was left active.
+
+Automation does not establish physical EOC display/touch acceptance, native
+Safari behavior, human operational-content approval, Google-rendered-map
+acceptance, or long-duration stability. Playwright WebKit is not reported as
+native Safari.
+
+---
+
 Evidence was collected on 2026-07-27 EDT. This report contains no credential
 values, Access identities, bot tokens, database passwords, map keys, tunnel
 tokens, session cookies, or authorization headers.

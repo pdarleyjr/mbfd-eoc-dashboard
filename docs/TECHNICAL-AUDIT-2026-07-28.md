@@ -160,11 +160,16 @@ Direct official APIs/GIS remain preferred. For approved public pages:
 Local release checks completed on 2026-07-28:
 
 - Ruff formatting/lint and mypy passed.
-- Pytest passed 75 tests with one environment-dependent integration test
-  deselected; measured branch-aware coverage was 88.35%.
+- Pytest passed 78 tests with one environment-dependent integration test
+  deselected; measured branch-aware coverage was 88.42%.
 - The registry contains 43 unique sources. Fixture/schema tests cover all three
-  EIA adapters, including recursive API-key removal. A live EIA contract poll
-  still requires the production `EOC_EIA_API_KEY`.
+  EIA adapters, including recursive API-key removal. Sanitized live contract
+  checks and fresh production worker polls passed for FPL demand, day-ahead
+  demand forecast, and net generation.
+- Production reconciliation retires records and deletes health rows for sources
+  removed from the configured registry while preserving raw snapshots. This
+  prevents the retired FDEM outage and static FPL tracker sources from inflating
+  current source-health counts after an upgrade.
 - TypeScript typecheck and ESLint passed.
 - Vitest passed 14 tests with 88.88% statement, 89.91% branch, 87.36%
   function, and 91.12% line coverage.

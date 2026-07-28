@@ -660,6 +660,11 @@ input:focus-visible,
   box-shadow: var(--shadow-sm);
 }
 
+.causeway-focus button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
 .weather-primary {
   min-height: 0;
   flex: 1;
