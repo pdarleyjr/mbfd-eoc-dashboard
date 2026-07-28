@@ -19,6 +19,7 @@ an operational all-clear.
 | P1 | Google Maps rejected the available Command browser key | Controlled probes on both `cmd.mbfdhub.com` and `eoc.mbfdhub.com` returned `RefererNotAllowedMapError`; the Command build had no production Map ID. | The EOC preserves secure environment injection, reports missing and authentication-failed states separately, and does not copy the rejected key. Google Cloud changes remain required; see “Google Maps action required.” |
 | P1 | GIS circuit breaker suppressed recovered slow-poll sources for days | Three failures on a 24-hour layer created a five-day restart-time suppression window. Flood and pump layers remained open after City GIS connectivity recovered. | Circuit suppression is capped at 15 minutes and never exceeds one normal poll interval. A worker restart can now retry a recovered source instead of preserving a multi-day outage. |
 | P1 | CPU-heavy GIS normalization could make another daily source miss its startup poll | The first production pass logged a daily scheduler run missed by 1.9 s while large ArcGIS polygon sets were being normalized. The default misfire allowance was one second. | Normalization now runs in a worker thread, and every scheduled source receives a bounded 60–600 s misfire allowance derived from its request/retry budget. Coalescing and one-instance limits remain in force. |
+| P1 | Full-resolution polygons made the restored map unusably slow | Once every FIRM/flood layer arrived, the actual gzip dashboard transfer measured 9.45 MB and blocked first render over the operations network. | Polygon publishers are now asked for five-decimal display geometry with a 0.0001° maximum offset (about 11 m latitude). Live contract measurement reduced all affected normalized GIS layers to approximately 468 KiB gzip while retaining record identity, attributes, provenance, and authoritative source links. |
 | P1 | Countywide evacuation geometry overwhelmed Miami Beach data | The evacuation-zone adapter disabled geographic scope and retained 2,000 active countywide polygons. | The adapter now applies the Miami Beach/causeway bounding query. |
 | P1 | Static webpages appeared as active operational notices | Subscription instructions, a 2024 boil-water archive, a construction project page, and generic transit pages were stored as current records. | Active sections are bounded by page headings. Informational-only pages remain health-monitored but emit no active record. Successful empty/current parses retire prior hashes immediately. |
 | P2 | GIS polygon/line clicks did nothing | Only point markers called the detail selection handler. | Google Data-layer features now use a click listener keyed to the canonical record ID. |
@@ -126,8 +127,8 @@ Direct official APIs/GIS remain preferred. For approved public pages:
 Local release checks completed on 2026-07-28:
 
 - Ruff formatting/lint and mypy passed.
-- Pytest passed 65 tests with one environment-dependent integration test
-  skipped; measured coverage was 88.53%.
+- Pytest passed 66 tests with one environment-dependent integration test
+  skipped; measured coverage was 88.58%.
 - The live contract probe validated all 42 configured source contracts.
 - TypeScript typecheck and ESLint passed.
 - Vitest passed 12 tests with 85.71% statement, 81.69% branch, 85.91%

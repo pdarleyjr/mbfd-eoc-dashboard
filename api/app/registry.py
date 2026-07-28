@@ -171,6 +171,8 @@ def _preliminary_firm_sources() -> list[Adapter]:
                     poll_interval_seconds=86400,
                     stale_threshold_seconds=172800,
                     include_fields=include_fields,
+                    geometry_precision=5,
+                    max_allowable_offset=0.0001,
                 ),
                 dissolve_field="FLD_ZONE",
             )
@@ -186,6 +188,8 @@ def _preliminary_firm_sources() -> list[Adapter]:
                     poll_interval_seconds=86400,
                     stale_threshold_seconds=172800,
                     include_fields=include_fields,
+                    geometry_precision=5,
+                    max_allowable_offset=0.0001,
                 )
             )
         )
@@ -258,6 +262,8 @@ def _arcgis_sources() -> list[Adapter]:
                 title_field="FLD_ZONE",
                 poll_interval_seconds=86400,
                 stale_threshold_seconds=172800,
+                geometry_precision=5,
+                max_allowable_offset=0.0001,
             )
         ),
         *_preliminary_firm_sources(),
@@ -276,6 +282,8 @@ def _arcgis_sources() -> list[Adapter]:
                 stale_threshold_seconds=172800,
                 geographic_scope=False,
                 include_fields=("NAME", "MUNICUID", "MUNICID", "MODIFIEDDATE"),
+                geometry_precision=5,
+                max_allowable_offset=0.0001,
             )
         ),
         ArcGisAdapter(
@@ -292,6 +300,8 @@ def _arcgis_sources() -> list[Adapter]:
                 poll_interval_seconds=86400,
                 stale_threshold_seconds=172800,
                 include_fields=("CATEGORY", "ZONEID", "COLOR", "MODIFYDATE"),
+                geometry_precision=5,
+                max_allowable_offset=0.0001,
             )
         ),
         ArcGisAdapter(

@@ -69,6 +69,23 @@ def test_arcgis_query_is_spatially_bounded_and_requests_only_required_fields() -
     assert query["geometryPrecision"] == ["6"]
 
 
+def test_arcgis_query_requests_bounded_display_geometry() -> None:
+    source = ArcGisSource(
+        source_id="flood",
+        source_name="Flood",
+        url="https://example.gov/FeatureServer/0",
+        category="flood_zone",
+        title_field="ZONE",
+        geometry_precision=5,
+        max_allowable_offset=0.0001,
+    )
+
+    query = parse_qs(urlparse(ArcGisAdapter(source).url).query)
+
+    assert query["geometryPrecision"] == ["5"]
+    assert query["maxAllowableOffset"] == ["0.0001"]
+
+
 def test_arcgis_empty_response_is_valid_empty_not_all_clear() -> None:
     source = ArcGisSource(
         source_id="fixture",

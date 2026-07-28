@@ -34,6 +34,8 @@ class ArcGisSource:
     fixed_title: str | None = None
     include_fields: tuple[str, ...] = ()
     timeout_seconds: float = 45
+    geometry_precision: int = 6
+    max_allowable_offset: float | None = None
 
 
 class ArcGisAdapter(Adapter):
@@ -63,9 +65,11 @@ class ArcGisAdapter(Adapter):
             "returnGeometry": "true",
             "returnTrueCurves": "false",
             "outSR": "4326",
-            "geometryPrecision": "6",
+            "geometryPrecision": str(source.geometry_precision),
             "f": "json",
         }
+        if source.max_allowable_offset is not None:
+            query["maxAllowableOffset"] = str(source.max_allowable_offset)
         if source.geographic_scope:
             query.update(
                 {
