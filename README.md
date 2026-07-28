@@ -10,7 +10,8 @@ operational systems.
 
 ## Architecture
 
-- React 19, strict TypeScript, Fluent UI, TanStack Query, Zustand, Zod, Google Maps.
+- React 19, strict TypeScript, Fluent UI, TanStack Query, Zustand, Zod,
+  Leaflet/OpenStreetMap with optional Google Maps.
 - FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PostgreSQL 16/PostGIS, Redis.
 - APScheduler worker with Redis locks, bounded retries, circuit breakers, sanitized
   immutable snapshots, and visible last-known-good behavior.
@@ -36,9 +37,11 @@ py -3 -m pytest
 ```
 
 Copy `.env.example` to `.env` only on an authorized development or production
-host. Generate fresh PostgreSQL and Redis passwords. Browser map values are
-compiled into the SPA and therefore must be HTTP-referrer restricted; they are
-not server secrets.
+host. Generate fresh PostgreSQL and Redis passwords. `EOC_EIA_API_KEY` is a
+server-side secret and must never be placed in a `VITE_*` value. The keyless
+OpenStreetMap tile URL and optional Google browser map values are compiled into
+the SPA; Google values must be HTTP-referrer restricted and are not server
+secrets.
 
 ## Honest-display contract
 
@@ -47,6 +50,8 @@ not server secrets.
   shelters exist.”
 - Retrieval time is distinct from source observation time.
 - Static pump, hospital, and hotel inventories never imply live status.
+- EIA-930 FPL values are balancing-authority regional grid indicators, never a
+  Miami Beach customer-outage count.
 - A failed poll retains last-known-good records and marks them stale.
 - AI-assisted extraction is supplemental, schema-validated, evidence-cited, and
   cannot overwrite authoritative records.

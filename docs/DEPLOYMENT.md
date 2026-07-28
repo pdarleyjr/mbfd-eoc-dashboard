@@ -19,8 +19,16 @@ curl --fail http://127.0.0.1:8220/api/system/version
 ```
 
 Create `.env` on the server with mode `0600`, fresh database/Redis credentials,
-the production origin, and approved browser map values. Never copy it into an
-image, repository, diagnostic output, or backup manifest.
+the production origin, `EOC_EIA_API_KEY`, the approved OpenStreetMap tile URL,
+and optional approved Google browser map values. Never copy it into an image,
+repository, diagnostic output, or backup manifest. The EIA value is server-side
+only. EIA response snapshots are recursively stripped of echoed `api_key`
+fields before persistence.
+
+`VITE_MAP_TILE_URL` defaults to the public OpenStreetMap endpoint. If using that
+service, preserve its exact HTTPS URL, visible attribution, normal browser
+headers/caching, and no prefetch/bulk download. Configure an approved alternate
+provider when an availability SLA is required.
 
 Alembic runs before Uvicorn starts. API health remains critical on PostgreSQL and
 Redis; Ollama, Maxun, Hermes and PulsePoint are reported independently so a

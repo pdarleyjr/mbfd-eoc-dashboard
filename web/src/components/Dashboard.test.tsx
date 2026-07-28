@@ -19,12 +19,12 @@ const baseSummary: DashboardSummary = {
   kpis: [
     {
       id: 'power',
-      label: 'Miami-Dade Power Outage Percentage',
+      label: 'FPL Regional Grid Demand',
       value: null,
       unavailable: true,
-      source: 'FDEM public summary',
+      source: 'EIA-930 · FPL regional; not local outage data',
       updated_at: null,
-      detail_category: 'power_outage_summary',
+      detail_category: 'power_grid_status',
     },
   ],
   records: [],
@@ -99,7 +99,35 @@ const richSummary: DashboardSummary = {
     },
   ],
   records: [
-    record('call', 'pulsepoint_call', {state: 'active', call_type: 'Medical'}),
+    {
+      ...record('call', 'pulsepoint_call', {
+        state: 'active',
+        call_type_code: 'ME',
+        address: 'COLLINS AVE, MIAMI BEACH, FL',
+        units: [
+          {id: 'CPT5', status: 'On Scene', cleared_at: null},
+          {id: 'E2', status: 'Available on Radio', cleared_at: null},
+          {id: 'R22', status: 'Transport', cleared_at: null},
+          {id: 'R11', status: 'Transport Arrived', cleared_at: null},
+          {id: 'E1', status: 'Dispatched', cleared_at: null},
+        ],
+        agency: 'X1012',
+        disclaimer: 'PulsePoint advisory feed — not official CAD',
+      }),
+      title: 'Medical Emergency',
+      geography: {type: 'Point', coordinates: [-80.12049, 25.83412]},
+    },
+    {
+      ...record('call-none', 'pulsepoint_call', {
+        state: 'recent',
+        call_type_code: 'FA',
+        address: 'WASHINGTON AVE, MIAMI BEACH, FL',
+        units: [],
+        agency: 'X1012',
+        disclaimer: 'PulsePoint advisory feed — not official CAD',
+      }),
+      title: 'Fire Alarm',
+    },
     record('forecast', 'forecast', {
       forecast_kind: 'hourly',
       shortForecast: 'Scattered storms',
@@ -109,19 +137,46 @@ const richSummary: DashboardSummary = {
     record('water', 'coastal_observation', {product: 'water_level', v: 1.2}),
     record('wind', 'coastal_observation', {product: 'wind', s: 12}),
     record('alert', 'weather_alert'),
-    record(
-      'road',
-      'lane_closure',
-      {
-        status: 'closed',
-        text: `Grounded official source excerpt ${'with readable details '.repeat(50)}`,
-      },
-      true,
-    ),
-    record('notice', 'official_notice', {text: 'Short official source excerpt.'}),
+    {
+      ...record(
+        'road',
+        'lane_closure',
+        {
+          USER_status_desc: 'Active',
+          USER_permit_number: 'ROW-2026-0042',
+          USER_description:
+            'Water-main extension work restricts the eastbound lane. Local access remains open.',
+          USER_main_address_line_1: '1881 WASHINGTON AVE',
+          USER_main_address_line_2: 'MIAMI BEACH, FL 33139',
+          USER_issue_date: '2026-07-27T12:00:00Z',
+          USER_expiration_date: '2026-07-31T21:00:00Z',
+          text: `Grounded official source excerpt ${'with readable details '.repeat(50)}`,
+        },
+        true,
+      ),
+      title: '1881 WASHINGTON AVE',
+    },
+    {
+      ...record('notice', 'official_notice', {
+        text: 'Miami-Dade DEM is monitoring potential Atlantic storms. Officials will provide updates if systems threaten the county.',
+      }),
+      title: 'Miami-Dade DEM monitors Atlantic storms',
+    },
     record('shelter', 'open_shelter'),
     record('hospital', 'hospital'),
-    record('power', 'power_outage_summary', {Pct_Out: 1.25}),
+    {
+      ...record('power', 'power_grid_status', {
+        respondent: 'FPL',
+        metric_type: 'D',
+        metric_name: 'Demand',
+        value: 23418,
+        unit: 'megawatthours',
+        period: '2026-07-28T09-04:00',
+        geographic_scope: 'Florida Power & Light balancing authority',
+        scope_note: 'Regional grid indicator; not a Miami Beach customer-outage count',
+      }),
+      title: 'FPL regional grid demand',
+    },
     record('transit', 'transit', {schedule_only: true}),
   ],
   source_health: [
@@ -171,10 +226,131 @@ describe('Dashboard', () => {
       screen.getByRole('heading', {name: 'Miami Beach Emergency Management Dashboard'}),
     ).toBeVisible()
     const powerTile = screen.getByRole('button', {
-      name: /Miami-Dade Power Outage Percentage/i,
+      name: /FPL Regional Grid Demand/i,
     })
     expect(within(powerTile).getByText('Not available')).toBeVisible()
     expect(screen.getByText('PulsePoint advisory feed — not official CAD')).toBeVisible()
+  })
+
+  it('renders operational PulsePoint, road, notice, and regional-grid content', () => {
+    queryResult = {...queryResult, data: richSummary}
+    renderDashboard()
+
+    const pulseCall = screen.getByRole('button', {
+      name: /Medical Emergency.*ME.*COLLINS AVE/i,
+    })
+    expect(within(pulseCall).getByText('Active')).toBeVisible()
+    expect(within(pulseCall).getByText('Live')).toBeVisible()
+    expect(within(pulseCall).getByText('CPT5')).toBeVisible()
+    expect(within(pulseCall).getByText('On Scene')).toBeVisible()
+    expect(within(pulseCall).getByText('+1')).toBeVisible()
+    expect(screen.getByText('No units reported')).toBeVisible()
+    expect(screen.getByText('Recent')).toBeVisible()
+
+    const road = screen.getByRole('button', {name: /1881 WASHINGTON AVE.*ROW-2026-0042/i})
+    expect(within(road).getByText(/Water-main extension work/)).toBeVisible()
+    expect(within(road).getByText('Active')).toBeVisible()
+    expect(screen.getByText(/Miami-Dade DEM is monitoring potential Atlantic storms/)).toBeVisible()
+    expect(
+      screen.getByText('Regional grid indicator; not a Miami Beach customer-outage count'),
+    ).toBeVisible()
+
+    fireEvent.click(pulseCall)
+    expect(useDashboardStore.getState().selectedRecordId).toBe('call')
+    const drawer = document.querySelector<HTMLElement>('.detail-drawer')
+    expect(drawer).not.toBeNull()
+    if (!drawer) throw new Error('PulsePoint detail drawer is missing')
+    expect(within(drawer).getByText('Available on Radio')).toBeVisible()
+    expect(within(drawer).getByText('Transport Arrived')).toBeVisible()
+    expect(within(drawer).getByText('PulsePoint advisory feed — not official CAD')).toBeVisible()
+  })
+
+  it('renders honest fallback values for partial operational records', () => {
+    const edgeSummary: DashboardSummary = {
+      ...baseSummary,
+      kpis: [],
+      records: [
+        {
+          ...record('call-recent-edge', 'pulsepoint_call', {
+            state: 'recent',
+            units: [],
+          }),
+          title: 'Recent advisory call',
+        },
+        {
+          ...record(
+            'call-active-edge',
+            'pulsepoint_call',
+            {
+              state: 'active',
+              units: [null, {id: 42}, {id: 'R1', status: '', cleared_at: '2026-07-27T14:02:00Z'}],
+            },
+            true,
+          ),
+          title: 'Active advisory call',
+          observed_at: null,
+          published_at: '2026-07-27T13:57:00Z',
+          stale_reason: null,
+        },
+        {
+          ...record('road-edge', 'lane_closure'),
+          title: 'Causeway status report',
+        },
+        {
+          ...record('notice-edge', 'official_notice'),
+          title: 'Official update without a supplied summary',
+        },
+        {
+          ...record('power-edge', 'power_grid_status', {
+            value: 'unavailable',
+            unit: 'watts',
+          }),
+          title: 'FPL regional grid metric',
+        },
+      ],
+      source_health: [
+        {
+          source_id: 'empty-source',
+          source_name: 'Empty official source',
+          state: 'healthy',
+          last_attempt: '2026-07-27T14:00:00Z',
+          last_success: '2026-07-27T14:00:00Z',
+          last_authoritative_observation: null,
+          current_data_age_seconds: 0,
+          poll_interval_seconds: 60,
+          consecutive_failures: 0,
+          last_known_good: false,
+          authority_level: 'authoritative',
+          circuit_breaker_state: 'closed',
+          schema_version: 1,
+          message: 'No current records returned by source',
+        },
+      ],
+    }
+    queryResult = {...queryResult, data: edgeSummary}
+    renderDashboard()
+
+    const call = screen.getByRole('button', {name: /Active advisory call/i})
+    expect(within(call).getByText('Stale')).toBeVisible()
+    expect(within(call).getByText('Address unavailable')).toBeVisible()
+    expect(within(call).getByText('R1')).toBeVisible()
+    expect(within(call).getByText('Status not reported')).toBeVisible()
+    expect(screen.getByRole('button', {name: /Causeway status report/i})).toHaveTextContent(
+      'Status reported by source',
+    )
+    expect(screen.getByText('Official update without a supplied summary')).toBeVisible()
+    expect(screen.getByText('Value unavailable')).toBeVisible()
+
+    fireEvent.click(call)
+    const drawer = document.querySelector<HTMLElement>('.detail-drawer')
+    expect(drawer).not.toBeNull()
+    if (!drawer) throw new Error('Partial-record detail drawer is missing')
+    expect(drawer.querySelector('.degraded-banner')).toHaveTextContent('Source is stale.')
+    expect(within(drawer).getByText('Status not reported')).toBeVisible()
+    expect(within(drawer).getByText(/Cleared/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', {name: 'Close record details'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Open dashboard data-source health'}))
+    expect(screen.getByText('No retained records')).toBeVisible()
   })
 
   it('renders rich official-source content and opens record details', () => {
@@ -201,7 +377,11 @@ describe('Dashboard', () => {
     useDashboardStore.getState().selectRecord('notice')
     renderDashboard()
 
-    expect(screen.getByText('Short official source excerpt.')).toBeVisible()
+    expect(
+      screen.getAllByText(
+        'Miami-Dade DEM is monitoring potential Atlantic storms. Officials will provide updates if systems threaten the county.',
+      )[0],
+    ).toBeVisible()
     expect(screen.queryByText('Show full extracted source text')).not.toBeInTheDocument()
   })
 
@@ -220,6 +400,8 @@ describe('Dashboard', () => {
     renderDashboard()
     fireEvent.click(screen.getByRole('radio', {name: /Comfortable/}))
     expect(useDashboardStore.getState().density).toBe('comfortable')
+    fireEvent.click(screen.getByRole('radio', {name: /Compact/}))
+    expect(useDashboardStore.getState().density).toBe('compact')
     fireEvent.click(screen.getByRole('button', {name: 'Close settings'}))
   })
 

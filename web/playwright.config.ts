@@ -21,6 +21,14 @@ export default defineConfig({
       use: {...devices['Desktop Chrome'], viewport: {width: 1920, height: 1080}},
     },
     {
+      name: 'desktop-1858',
+      use: {...devices['Desktop Chrome'], viewport: {width: 1858, height: 970}},
+    },
+    {
+      name: 'desktop-1920-short',
+      use: {...devices['Desktop Chrome'], viewport: {width: 1920, height: 900}},
+    },
+    {
       name: 'laptop-1366',
       use: {...devices['Desktop Chrome'], viewport: {width: 1366, height: 768}},
     },
@@ -28,6 +36,7 @@ export default defineConfig({
       name: 'tablet-landscape',
       use: {
         ...devices['iPad Pro 11 landscape'],
+        viewport: {width: 1180, height: 820},
       },
     },
     {

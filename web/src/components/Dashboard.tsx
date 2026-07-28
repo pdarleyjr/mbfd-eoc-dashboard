@@ -110,6 +110,238 @@ function RecordList({
   )
 }
 
+function payloadText(record: CanonicalRecord, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record.payload[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  }
+  return null
+}
+
+function conciseSentences(value: string | null, sentenceLimit = 1, maximum = 240): string | null {
+  if (!value) return null
+  const compact = value.replace(/\s+/g, ' ').trim()
+  const matches = compact.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [compact]
+  const candidate = matches.slice(0, sentenceLimit).join(' ').trim()
+  if (candidate.length <= maximum) return candidate
+  const shortened = candidate
+    .slice(0, maximum)
+    .replace(/\s+\S*$/, '')
+    .replace(/[ ,;:-]+$/, '')
+  return `${shortened || candidate.slice(0, maximum - 1)}…`
+}
+
+type AdvisoryUnit = {id: string; status: string | null; clearedAt: string | null}
+
+function advisoryUnits(record: CanonicalRecord): AdvisoryUnit[] {
+  const units = record.payload.units
+  if (!Array.isArray(units)) return []
+  return units.flatMap((unit) => {
+    if (!unit || typeof unit !== 'object' || Array.isArray(unit)) return []
+    const values = unit as Record<string, unknown>
+    const id = typeof values.id === 'string' ? values.id.trim() : ''
+    if (!id) return []
+    return [
+      {
+        id,
+        status: typeof values.status === 'string' && values.status.trim() ? values.status : null,
+        clearedAt:
+          typeof values.cleared_at === 'string' && values.cleared_at.trim()
+            ? values.cleared_at
+            : null,
+      },
+    ]
+  })
+}
+
+function PulsePointList({records, limit = 5}: {records: CanonicalRecord[]; limit?: number}) {
+  const selectRecord = useDashboardStore((state) => state.selectRecord)
+  const ordered = [...records].sort((first, second) => {
+    const firstActive = first.payload.state === 'active' ? 0 : 1
+    const secondActive = second.payload.state === 'active' ? 0 : 1
+    return firstActive - secondActive
+  })
+  if (!ordered.length)
+    return (
+      <div className="honest-empty">
+        <ShieldError24Regular aria-hidden />
+        <span>No current records returned by source</span>
+      </div>
+    )
+  return (
+    <ul className="operational-list pulsepoint-list" aria-label="PulsePoint advisory incidents">
+      {ordered.slice(0, limit).map((record) => {
+        const units = advisoryUnits(record)
+        const active = record.payload.state === 'active'
+        const hasCoordinates = record.geography.type === 'Point'
+        return (
+          <li key={record.id}>
+            <button type="button" onClick={() => selectRecord(record.id)}>
+              <span className="operational-card-heading">
+                <strong>{record.title}</strong>
+                {payloadText(record, 'call_type_code') && (
+                  <span className="call-code">{payloadText(record, 'call_type_code')}</span>
+                )}
+                <span className={active ? 'state-tag state-active' : 'state-tag'}>
+                  {active ? 'Active' : 'Recent'}
+                </span>
+                <span className={record.stale ? 'freshness-tag stale' : 'freshness-tag'}>
+                  {record.stale ? 'Stale' : 'Live'}
+                </span>
+              </span>
+              <span className="operational-location">
+                {payloadText(record, 'address') ?? 'Address unavailable'}
+              </span>
+              <span className="unit-strip" aria-label="Advisory unit statuses">
+                {units.length ? (
+                  <>
+                    {units.slice(0, 4).map((unit) => (
+                      <span className="unit-chip" key={`${record.id}-${unit.id}`}>
+                        <b>{unit.id}</b>
+                        <small>{unit.status ?? 'Status not reported'}</small>
+                      </span>
+                    ))}
+                    {units.length > 4 && <span className="unit-overflow">+{units.length - 4}</span>}
+                  </>
+                ) : (
+                  <span className="no-units">No units reported</span>
+                )}
+              </span>
+              <span className="operational-meta">
+                <span>
+                  {recordTime(record)} · {record.source_name}
+                </span>
+                {!hasCoordinates && <span>Coordinates unavailable</span>}
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function roadLocation(record: CanonicalRecord): string {
+  return (
+    [
+      payloadText(record, 'USER_main_address_line_1', 'address', 'LOCATION', 'location', 'HIGHWAY'),
+      payloadText(record, 'USER_main_address_line_2'),
+    ]
+      .filter(Boolean)
+      .join(', ') || record.title
+  )
+}
+
+function RoadRecordList({records, limit = 5}: {records: CanonicalRecord[]; limit?: number}) {
+  const selectRecord = useDashboardStore((state) => state.selectRecord)
+  if (!records.length)
+    return (
+      <div className="honest-empty">
+        <ShieldError24Regular aria-hidden />
+        <span>No verified closure reported</span>
+      </div>
+    )
+  return (
+    <ul className="operational-list road-list" aria-label="Road and access records">
+      {records.slice(0, limit).map((record) => {
+        const summary = conciseSentences(
+          payloadText(record, 'USER_description', 'DESCRIPT', 'REMARKS', 'text'),
+        )
+        const permit = payloadText(record, 'USER_permit_number')
+        const status =
+          payloadText(record, 'USER_status_desc', 'status', 'STATUS', 'SEVERITY') ??
+          'Status reported by source'
+        const start = payloadText(record, 'USER_issue_date', 'REPORTED')
+        const end = payloadText(record, 'USER_expiration_date')
+        return (
+          <li key={record.id}>
+            <button type="button" onClick={() => selectRecord(record.id)}>
+              <span className="operational-card-heading">
+                <strong>{roadLocation(record)}</strong>
+                <span className="state-tag">{status}</span>
+                <span className={`authority-mini authority-${record.authority_level}`}>
+                  {record.authority_level}
+                </span>
+              </span>
+              {summary && <span className="operational-summary">{summary}</span>}
+              <span className="operational-meta">
+                <span>
+                  {permit ? `Permit ${permit} · ` : ''}
+                  {start ? `Starts ${localTime(start)} · ` : ''}
+                  {end ? `Ends ${localTime(end)}` : recordTime(record)}
+                </span>
+                <span>{record.stale ? 'Stale · View details' : 'Current · View details'}</span>
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function NoticeRecordList({records, limit = 3}: {records: CanonicalRecord[]; limit?: number}) {
+  const selectRecord = useDashboardStore((state) => state.selectRecord)
+  if (!records.length)
+    return (
+      <div className="honest-empty">
+        <ShieldError24Regular aria-hidden />
+        <span>No current records returned by source</span>
+      </div>
+    )
+  return (
+    <ul className="operational-list notice-list" aria-label="Official public notices">
+      {records.slice(0, limit).map((record) => (
+        <li key={record.id}>
+          <button type="button" onClick={() => selectRecord(record.id)}>
+            <span className="operational-card-heading">
+              <strong>{record.title}</strong>
+              <span className={`authority-mini authority-${record.authority_level}`}>
+                {record.authority_level}
+              </span>
+            </span>
+            {conciseSentences(payloadText(record, 'text'), 2, 300) && (
+              <span className="operational-summary">
+                {conciseSentences(payloadText(record, 'text'), 2, 300)}
+              </span>
+            )}
+            <span className="operational-meta">
+              <span>
+                {record.source_name} · Retrieved {recordTime(record)}
+              </span>
+              <span>View details</span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function PowerGridStatus({records}: {records: CanonicalRecord[]}) {
+  const selectRecord = useDashboardStore((state) => state.selectRecord)
+  const demand = records.find((record) => record.payload.metric_type === 'D') ?? records[0]
+  if (!demand) return null
+  const value = demand.payload.value
+  const unit = demand.payload.unit === 'megawatthours' ? 'MWh' : valueText(demand.payload.unit)
+  const renderedValue =
+    typeof value === 'number'
+      ? `${new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format(value)} ${unit}`
+      : 'Value unavailable'
+  return (
+    <button type="button" className="power-grid-card" onClick={() => selectRecord(demand.id)}>
+      <span>
+        <strong>{demand.title}</strong>
+        <b>{renderedValue}</b>
+      </span>
+      <small>{payloadText(demand, 'geographic_scope')}</small>
+      <p>{payloadText(demand, 'scope_note')}</p>
+      <span className="operational-meta">EIA-930 · {recordTime(demand)} · View details</span>
+    </button>
+  )
+}
+
 function WeatherCoastal({records}: {records: CanonicalRecord[]}) {
   const forecast = records.find(
     (record) => record.category === 'forecast' && record.payload.forecast_kind === 'hourly',
@@ -306,6 +538,7 @@ function SettingsDrawer() {
 function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
   const selectRecord = useDashboardStore((state) => state.selectRecord)
   const sourceText = typeof record?.payload.text === 'string' ? record.payload.text : null
+  const units = record ? advisoryUnits(record) : []
   const payloadEntries = record
     ? Object.entries(record.payload)
         .filter(
@@ -383,6 +616,24 @@ function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
                 </div>
               ))}
             </div>
+            {units.length > 0 && (
+              <section className="payload-array-section" aria-labelledby="advisory-units-heading">
+                <h3 id="advisory-units-heading">Advisory units</h3>
+                <p>
+                  Unit identities and statuses are external advisory data, not authoritative CAD
+                  assignments.
+                </p>
+                <ul>
+                  {units.map((unit) => (
+                    <li key={`${record.id}-${unit.id}`}>
+                      <strong>{unit.id}</strong>
+                      <span>{unit.status ?? 'Status not reported'}</span>
+                      {unit.clearedAt && <small>Cleared {localTime(unit.clearedAt)}</small>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {sourceText && (
               <section className="source-excerpt" aria-labelledby="source-excerpt-heading">
                 <h3 id="source-excerpt-heading">Source excerpt</h3>
@@ -425,8 +676,12 @@ export function Dashboard() {
     else await document.exitFullscreen()
   }
 
-  const utilityRecords = useMemo(
-    () => recordsByCategory('power_outage_summary', 'stormwater_pump_asset'),
+  const powerGridRecords = useMemo(
+    () => recordsByCategory('power_grid_status'),
+    [recordsByCategory],
+  )
+  const supportingUtilityRecords = useMemo(
+    () => [...recordsByCategory('stormwater_pump_asset'), ...recordsByCategory('transit')],
     [recordsByCategory],
   )
 
@@ -535,34 +790,21 @@ export function Dashboard() {
           <WeatherCoastal records={data?.records ?? []} />
           <Panel title="PulsePoint Active Calls" subtitle="Advisory" className="pulsepoint-panel">
             <p className="required-disclaimer">PulsePoint advisory feed — not official CAD</p>
-            <RecordList
-              records={recordsByCategory('pulsepoint_call').filter(
-                (record) => record.payload.state === 'active',
-              )}
-              empty="No current records returned by source"
-            />
+            <PulsePointList records={recordsByCategory('pulsepoint_call')} />
           </Panel>
           <Panel
             title="Road & Access Incidents"
             subtitle="Official public sources"
             className="traffic-panel"
           >
-            <RecordList
-              records={recordsByCategory('traffic_incident', 'lane_closure')}
-              empty="No verified closure reported"
-              limit={5}
-            />
+            <RoadRecordList records={recordsByCategory('traffic_incident', 'lane_closure')} />
           </Panel>
           <Panel
             title="Official Public Notices"
             subtitle="Supplemental extraction"
             className="notices-panel"
           >
-            <RecordList
-              records={recordsByCategory('official_notice')}
-              empty="No current records returned by source"
-              limit={3}
-            />
+            <NoticeRecordList records={recordsByCategory('official_notice')} />
           </Panel>
           <Panel title="Shelter & Facility Information" className="facilities-panel">
             <div className="split-panel">
@@ -585,11 +827,18 @@ export function Dashboard() {
             </div>
           </Panel>
           <Panel title="Power, Assets & Transit Awareness" className="utility-panel">
-            <RecordList
-              records={[...utilityRecords, ...recordsByCategory('transit')]}
-              empty="Status not available from current public sources"
-              limit={4}
-            />
+            <PowerGridStatus records={powerGridRecords} />
+            {supportingUtilityRecords.length > 0 ? (
+              <RecordList
+                records={supportingUtilityRecords}
+                empty="Status not available from current public sources"
+                limit={3}
+              />
+            ) : (
+              powerGridRecords.length === 0 && (
+                <div className="honest-empty">Status not available from current public sources</div>
+              )
+            )}
           </Panel>
           <Panel
             title="Dashboard Data-Source Health"

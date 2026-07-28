@@ -5,7 +5,8 @@
 This audit covers the EOC dashboard repository, the map implementation and
 configuration pattern in `pdarleyjr/mbfd-command`, the production EOC API and
 worker on the GMKtec, current public GIS/page contracts, and responsive browser
-behavior at 1920×1080, 1366×768, 1180×820, and 390×844.
+behavior at 1920×1080, 1920×900, 1858×970, 1366×768, 1180×820, and
+390×844.
 
 The audit distinguishes code/configuration readiness from Google Cloud
 authorization and from physical/human acceptance. No source result is treated as
@@ -15,6 +16,10 @@ an operational all-clear.
 
 | Severity | Finding | Evidence before repair | Resolution |
 | --- | --- | --- | --- |
+| P0 | The dashboard had no visible operational map when Google credentials were absent or rejected | The production screenshot showed a configuration message in place of all map context, even though the dashboard must remain useful without a paid map key. | Leaflet/OpenStreetMap is now the automatic keyless/auth-failure fallback with visible attribution, loading/error state, clustering, all configured GIS layers, keyboard-actionable shapes, focus controls, selected-feature highlighting, and resize/full-screen reflow. Google remains optional. |
+| P1 | Power data mixed obsolete/outage-oriented sources with the wrong operational meaning | The registry included the FDEM outage layer and a static FPL tracker even though the requested source is EIA regional grid operating data. | Both sources were removed. Three server-side authenticated EIA-930 adapters now request FPL `D`, `DF`, and `NG`, sanitize echoed API keys before snapshots, and label every value as balancing-authority regional data rather than municipal/customer outage data. |
+| P1 | PulsePoint, roads, and notices did not expose enough operational context | Cards omitted unit state and call state, flattened road fields, and displayed CMS scrape artifacts such as `ls:begin`, `ls:end`, and trailing `HTML`. | PulsePoint cards now distinguish active/recent and live/stale, show code/address/unit status with overflow and missing-data states, and focus the selected map marker. Road cards expose address, status, permit, summary, dates, authority, freshness, and detail access. Notice cleanup is deterministic and tested against the observed artifacts. |
+| P1 | Short desktop displays clipped the bottom dashboard row | At 1858×970 the page shell hid the facilities, utility, and source-health panels; richer cards increased the risk at 1920×900. | Wide/short layouts reserve header and stale-banner rows explicitly and make the dashboard content the scroll container. Automated tests scroll the final panel into view and verify full record text at both exact viewports. |
 | P0 | Dashboard category starvation and stale-state contamination | `/api/v1/dashboard/summary` returned 2,500 records, all `forecast`, in a 3.3 MB response. Production contained 2,774 active hourly forecast rows, 2,619 marked stale. | Absent rows from a complete successful response now expire immediately, including rows with an old future expiry. Dashboard queries apply per-category display bounds and prefer non-stale rows. API responses over 1 KB are gzip-compressed. |
 | P1 | Google Maps rejected the available Command browser key | Controlled probes on both `cmd.mbfdhub.com` and `eoc.mbfdhub.com` returned `RefererNotAllowedMapError`; the Command build had no production Map ID. | The EOC preserves secure environment injection, reports missing and authentication-failed states separately, and does not copy the rejected key. Google Cloud changes remain required; see “Google Maps action required.” |
 | P1 | GIS circuit breaker suppressed recovered slow-poll sources for days | Three failures on a 24-hour layer created a five-day restart-time suppression window. Flood and pump layers remained open after City GIS connectivity recovered. | Circuit suppression is capped at 15 minutes and never exceeds one normal poll interval. A worker restart can now retry a recovered source instead of preserving a multi-day outage. |
@@ -42,7 +47,7 @@ The Command repository confirmed the intended integration pattern:
 
 Command does not contain City ArcGIS overlays. Those remain EOC-specific.
 
-The EOC GIS registry now includes:
+The EOC map/source registry now includes:
 
 - City active lane closures, with permit/status/issue/expiration fields
 - Stormwater Pump Stations — Asset Inventory, with inventory fields only
@@ -52,12 +57,20 @@ The EOC GIS registry now includes:
 - Miami Beach municipal boundary
 - Miami-Dade hurricane evacuation zones, spatially bounded to the operating area
 - Miami-Dade hospitals, evacuation centers, and static transit
-- FDEM/FHP/FL511 roads, incidents, congestion, construction, hotels, and power
+- FDEM/FHP/FL511 roads, incidents, congestion, construction, and hotels
+- EIA-930 FPL regional demand, day-ahead demand forecast, and net generation
 - FEMA open shelters
 
 The map retains authority symbology, clustering, layer toggles, Miami Beach reset,
 and MacArthur, Julia Tuttle, and Venetian quick focus. Preliminary FIRM layers
 share the flood toggle and retain source-specific detail/provenance.
+
+Leaflet/OpenStreetMap is the default whenever Google key/Map ID configuration is
+absent or Google reports authentication failure. The public tile endpoint is a
+configurable non-secret image-build input. Its use keeps visible attribution,
+normal browser headers/caching, and no prefetching or bulk download. Google Maps
+remains an optional enhanced renderer and is no longer a prerequisite for an
+operational map.
 
 ## Google Maps action required
 
@@ -147,21 +160,25 @@ Direct official APIs/GIS remain preferred. For approved public pages:
 Local release checks completed on 2026-07-28:
 
 - Ruff formatting/lint and mypy passed.
-- Pytest passed 66 tests with one environment-dependent integration test
-  skipped; measured coverage was 88.58%.
-- The live contract probe validated all 42 configured source contracts.
+- Pytest passed 75 tests with one environment-dependent integration test
+  deselected; measured branch-aware coverage was 88.35%.
+- The registry contains 43 unique sources. Fixture/schema tests cover all three
+  EIA adapters, including recursive API-key removal. A live EIA contract poll
+  still requires the production `EOC_EIA_API_KEY`.
 - TypeScript typecheck and ESLint passed.
-- Vitest passed 12 tests with 85.71% statement, 81.69% branch, 85.91%
-  function, and 89.62% line coverage.
+- Vitest passed 14 tests with 88.88% statement, 89.91% branch, 87.36%
+  function, and 91.12% line coverage.
 - The production web build passed.
-- Playwright passed 24 checks across 1920 desktop, 1366 laptop, landscape
-  tablet, 390 px mobile, WebKit, and reduced-motion projects.
+- Playwright passed 56 checks across 1920×1080, 1920×900, 1858×970,
+  1366×768, 1180×820, 390×844, WebKit, and reduced-motion projects. A
+  separate real-network probe returned successful OpenStreetMap tile responses
+  and captured visible labels/attribution.
 - The project dependency audits reported no known Python or npm
   vulnerabilities; the changed-file secret scan and `git diff --check` passed.
 
 The final deployment handoff records the immutable release SHA, tree, archive
-checksum, image identity, CI run, and rollback path. Production acceptance
-observed during this audit also included:
+checksum, image identity, CI run, and rollback path. Baseline production
+acceptance observed before this completion pass included:
 
 - all 42 source-health rows healthy;
 - 1,127 displayed records across 14 categories with zero stale records;

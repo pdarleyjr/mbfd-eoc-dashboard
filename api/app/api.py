@@ -27,7 +27,7 @@ CATEGORY_GROUPS: dict[str, list[str]] = {
     "coastal": ["coastal_observation"],
     "tropical": ["tropical"],
     "traffic": ["traffic_incident", "lane_closure"],
-    "utilities": ["power_outage_summary", "stormwater_pump_asset"],
+    "utilities": ["power_grid_status", "stormwater_pump_asset"],
     "shelters": ["open_shelter", "evacuation_center"],
     "facilities": ["hospital", "hotel"],
     "transit": ["transit"],
@@ -61,7 +61,7 @@ DASHBOARD_CATEGORY_LIMITS: dict[str, int] = {
     "tropical": 50,
     "traffic_incident": 200,
     "lane_closure": 200,
-    "power_outage_summary": 10,
+    "power_grid_status": 10,
     "stormwater_pump_asset": 200,
     "open_shelter": 100,
     "evacuation_center": 100,
@@ -212,7 +212,14 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
     alerts = [record for record in records if record.category == "weather_alert"]
     road = [record for record in records if record.category in {"traffic_incident", "lane_closure"}]
     shelters = [record for record in records if record.category == "open_shelter"]
-    power = next((record for record in records if record.category == "power_outage_summary"), None)
+    power = next(
+        (
+            record
+            for record in records
+            if record.category == "power_grid_status" and record.payload.get("metric_type") == "D"
+        ),
+        None,
+    )
     healthy_sources = sum(item.state is SourceHealthState.HEALTHY for item in health)
 
     def kpi(
@@ -232,6 +239,17 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
             updated_at=updated_at,
             detail_category=category,
         )
+
+    def grid_value(record: CanonicalRecord | None) -> str | None:
+        if record is None:
+            return None
+        value = record.payload.get("value")
+        if not isinstance(value, int | float) or isinstance(value, bool):
+            return None
+        unit = record.payload.get("unit")
+        suffix = "MWh" if unit == "megawatthours" else str(unit or "").strip()
+        rendered = f"{value:,.0f}" if float(value).is_integer() else f"{value:,.1f}"
+        return f"{rendered} {suffix}".strip()
 
     kpis = [
         kpi(
@@ -268,11 +286,11 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
         ),
         kpi(
             "power",
-            "Miami-Dade Power Outage Percentage",
-            power.payload.get("Pct_Out") if power else None,
-            "FDEM public summary",
-            "power_outage_summary",
-            power.retrieved_at if power else None,
+            "FPL Regional Grid Demand",
+            grid_value(power),
+            "EIA-930 · FPL regional; not local outage data",
+            "power_grid_status",
+            (power.observed_at or power.retrieved_at) if power else None,
         ),
         kpi(
             "sources",

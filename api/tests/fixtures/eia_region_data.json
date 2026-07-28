@@ -1,0 +1,31 @@
+{
+  "apiVersion": "2.1.12",
+  "request": {
+    "command": "/v2/electricity/rto/region-data/data/",
+    "params": {
+      "api_key": "server-secret-must-not-reach-snapshots",
+      "frequency": "local-hourly",
+      "data": ["value"],
+      "facets": {
+        "respondent": ["FPL"],
+        "type": ["D"]
+      }
+    }
+  },
+  "response": {
+    "total": "1",
+    "dateFormat": "YYYY-MM-DD\"T\"HH24TZH",
+    "frequency": "local-hourly",
+    "data": [
+      {
+        "period": "2026-07-28T09-04:00",
+        "respondent": "FPL",
+        "respondent-name": "Florida Power & Light Co.",
+        "type": "D",
+        "type-name": "Demand",
+        "value": "23418",
+        "value-units": "megawatthours"
+      }
+    ]
+  }
+}

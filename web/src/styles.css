@@ -442,6 +442,113 @@ input:focus-visible,
   background: var(--surface-muted);
 }
 
+.leaflet-fallback,
+.leaflet-map {
+  width: 100%;
+  height: 100%;
+}
+
+.leaflet-fallback {
+  position: relative;
+}
+
+.leaflet-map {
+  z-index: 1;
+  background: oklch(93% 0.018 244);
+}
+
+.leaflet-map .leaflet-control-zoom a {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.leaflet-map .leaflet-control-attribution {
+  max-width: calc(100% - 1rem);
+  padding: 0.18rem 0.32rem;
+  color: var(--text);
+  background: oklch(99% 0.005 250 / 94%);
+  font-size: 0.62rem;
+}
+
+.leaflet-map .leaflet-control-attribution a {
+  min-height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  color: oklch(42% 0.14 252);
+  font-weight: 700;
+}
+
+.leaflet-record-marker,
+.leaflet-cluster-marker {
+  width: 2.75rem !important;
+  height: 2.75rem !important;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+}
+
+.leaflet-record-marker > span {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  color: var(--surface);
+  background: var(--blue-650);
+  box-shadow: 0 2px 7px oklch(24% 0.07 255 / 28%);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.leaflet-record-marker > span > b {
+  transform: rotate(45deg);
+}
+
+.leaflet-record-marker.marker-advisory > span {
+  background: var(--danger);
+}
+
+.leaflet-record-marker.marker-supplemental > span {
+  background: var(--violet);
+}
+
+.leaflet-record-marker.is-selected > span,
+.map-marker.is-selected {
+  outline: 4px solid oklch(80% 0.16 92);
+  outline-offset: 2px;
+}
+
+.leaflet-record-marker:focus-visible > span,
+.leaflet-cluster-marker:focus-visible > span {
+  outline: 3px solid oklch(67% 0.16 247);
+  outline-offset: 3px;
+}
+
+.leaflet-cluster-marker > span {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  border: 3px solid oklch(99% 0.005 250 / 92%);
+  border-radius: 50%;
+  color: var(--surface);
+  background: var(--navy-900);
+  box-shadow: 0 2px 8px oklch(24% 0.07 255 / 28%);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.leaflet-map .leaflet-interactive:focus-visible {
+  outline: 4px solid oklch(80% 0.16 92);
+  outline-offset: 2px;
+}
+
 .layer-list {
   position: absolute;
   z-index: 5;
@@ -541,7 +648,7 @@ input:focus-visible,
   position: absolute;
   z-index: 4;
   right: 0.55rem;
-  bottom: 0.55rem;
+  bottom: 1.7rem;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -672,6 +779,249 @@ input:focus-visible,
 
 .record-list button:hover {
   background: var(--surface-muted);
+}
+
+.operational-list {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.operational-list li {
+  border-bottom: 1px solid var(--line);
+}
+
+.operational-list li:last-child {
+  border-bottom: 0;
+}
+
+.operational-list button {
+  width: 100%;
+  min-height: 4.6rem;
+  display: grid;
+  gap: 0.25rem;
+  border: 0;
+  padding: 0.48rem 0.62rem;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.operational-list button:hover {
+  background: var(--surface-muted);
+}
+
+.operational-card-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.operational-card-heading > strong {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--navy-900);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.call-code,
+.state-tag,
+.freshness-tag,
+.authority-mini {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.12rem 0.32rem;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 0.5rem;
+  font-weight: 750;
+  line-height: 1.1;
+  text-transform: capitalize;
+}
+
+.call-code {
+  border-radius: 0.25rem;
+  color: oklch(43% 0.11 30);
+  background: oklch(97% 0.025 30);
+  text-transform: uppercase;
+}
+
+.state-active,
+.freshness-tag {
+  color: var(--success);
+  border-color: oklch(76% 0.08 148);
+  background: oklch(96% 0.035 148);
+}
+
+.freshness-tag.stale {
+  color: oklch(45% 0.12 65);
+  border-color: oklch(75% 0.1 65);
+  background: oklch(96% 0.04 75);
+}
+
+.authority-mini.authority-authoritative {
+  color: oklch(42% 0.14 252);
+  border-color: oklch(78% 0.08 252);
+  background: var(--blue-100);
+}
+
+.authority-mini.authority-advisory {
+  color: var(--danger);
+  border-color: oklch(78% 0.09 28);
+  background: oklch(96% 0.035 28);
+}
+
+.authority-mini.authority-supplemental {
+  color: var(--violet);
+  border-color: oklch(78% 0.07 303);
+  background: oklch(96% 0.025 303);
+}
+
+.operational-location {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.6rem;
+  font-weight: 620;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.24rem;
+  overflow: hidden;
+}
+
+.unit-chip {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.28rem;
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+
+.unit-chip b {
+  color: var(--navy-900);
+  font-size: 0.52rem;
+}
+
+.unit-chip small {
+  max-width: 5rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.48rem;
+  text-overflow: ellipsis;
+}
+
+.unit-overflow,
+.no-units {
+  color: var(--text-muted);
+  font-size: 0.52rem;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.operational-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.58rem;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.operational-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.operational-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operational-meta > span:last-child {
+  flex: 0 0 auto;
+}
+
+.road-list button,
+.notice-list button {
+  min-height: 4.9rem;
+}
+
+.power-grid-card {
+  width: 100%;
+  min-height: 5.6rem;
+  display: grid;
+  gap: 0.2rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0.48rem 0.62rem;
+  color: var(--text);
+  background: oklch(98% 0.012 250);
+  text-align: left;
+  cursor: pointer;
+}
+
+.power-grid-card:hover {
+  background: var(--blue-100);
+}
+
+.power-grid-card > span:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.power-grid-card strong {
+  color: var(--navy-900);
+  font-size: 0.66rem;
+  text-transform: none;
+}
+
+.power-grid-card b {
+  color: var(--blue-650);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.power-grid-card small {
+  color: var(--text-muted);
+  font-size: 0.52rem;
+}
+
+.power-grid-card p {
+  margin: 0;
+  color: oklch(43% 0.1 30);
+  font-size: 0.54rem;
+  font-weight: 650;
 }
 
 .record-dot {
@@ -957,6 +1307,56 @@ input:focus-visible,
   line-height: 1.4;
 }
 
+.payload-array-section {
+  margin-top: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem;
+  background: var(--surface-muted);
+}
+
+.payload-array-section h3 {
+  margin: 0;
+  color: var(--navy-900);
+  font-size: 0.82rem;
+}
+
+.payload-array-section > p {
+  margin: 0.25rem 0 0.65rem;
+  color: oklch(43% 0.11 30);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.payload-array-section ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.payload-array-section li {
+  display: grid;
+  gap: 0.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem;
+  background: var(--surface);
+}
+
+.payload-array-section li strong {
+  color: var(--navy-900);
+  font-size: 0.78rem;
+}
+
+.payload-array-section li span,
+.payload-array-section li small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
 .source-excerpt {
   margin-top: 0.85rem;
   border: 1px solid var(--line);
@@ -1037,8 +1437,66 @@ input:focus-visible,
   font-size: 0.74rem;
 }
 
-@media (max-width: 87.5rem) {
+@media (min-width: 87.51rem) and (max-height: 62rem) {
+  html,
+  body,
+  #root {
+    height: 100%;
+    min-height: 0;
+  }
+
   body {
+    overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100dvh;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .app-header {
+    grid-row: 1;
+  }
+
+  .degraded-banner {
+    grid-row: 2;
+  }
+
+  .dashboard-content {
+    grid-row: 3;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    grid-template-rows: auto auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 0.15rem;
+    scrollbar-gutter: stable;
+  }
+
+  .dashboard-grid {
+    min-height: 52rem;
+    grid-template:
+      'map weather traffic' minmax(18rem, auto)
+      'map pulse notices' minmax(18rem, auto)
+      'facilities utility health' minmax(15rem, auto)
+      / minmax(32rem, 1.52fr) minmax(18rem, 0.78fr) minmax(19rem, 0.82fr);
+  }
+}
+
+@media (max-width: 87.5rem) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
     overflow: auto;
   }
 
@@ -1175,9 +1633,19 @@ input:focus-visible,
   }
 
   .causeway-focus {
+    top: 0.35rem;
     right: 0.35rem;
-    bottom: 0.35rem;
-    left: 0.35rem;
+    bottom: auto;
+    left: auto;
+    max-width: calc(100% - 3.6rem);
+  }
+
+  .causeway-focus button {
+    min-width: 2.75rem;
+  }
+
+  .leaflet-map .leaflet-control-zoom {
+    top: 3.25rem;
   }
 
   .map-config-error {
@@ -1197,13 +1665,39 @@ input:focus-visible,
   }
 
   .record-list button,
+  .operational-list button,
+  .power-grid-card,
   .source-link {
     min-height: 2.75rem;
+  }
+
+  .operational-card-heading {
+    flex-wrap: wrap;
+  }
+
+  .operational-card-heading > strong {
+    flex-basis: 100%;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .operational-location,
+  .operational-meta > span {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .operational-meta {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
 @media (pointer: coarse) {
   .record-list button,
+  .operational-list button,
+  .power-grid-card,
   .kpi-tile,
   .causeway-focus button,
   .header-operations button {

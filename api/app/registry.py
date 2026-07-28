@@ -1,6 +1,7 @@
 from .adapters.arcgis import ArcGisAdapter, ArcGisSource, DissolvingArcGisAdapter
 from .adapters.base import Adapter
 from .adapters.coops import CoopsAdapter
+from .adapters.eia import EiaRegionDataAdapter
 from .adapters.gtfs import MiamiDadeGtfsAdapter
 from .adapters.nhc import NhcCurrentStormsAdapter
 from .adapters.nws import NwsAlertsAdapter, NwsForecastAdapter
@@ -405,42 +406,11 @@ def _arcgis_sources() -> list[Adapter]:
                 ),
             )
         ),
-        ArcGisAdapter(
-            ArcGisSource(
-                source_id="fdem-power-outage-miami-dade",
-                source_name="FDEM Florida Power Outage Summary — Miami-Dade",
-                url=(
-                    "https://services.arcgis.com/3wFbqsFPLeKqOlIK/arcgis/rest/services/"
-                    "Florida_Power_Outages_View/FeatureServer/0"
-                ),
-                category="power_outage_summary",
-                title_field="NAME",
-                observed_field="Updated",
-                where="NAME='Miami-Dade'",
-                poll_interval_seconds=300,
-                stale_threshold_seconds=900,
-                geographic_scope=False,
-                include_fields=(
-                    "NAME",
-                    "Customers_Total",
-                    "Customers_Out",
-                    "Pct_Out",
-                    "Updated",
-                ),
-            )
-        ),
     ]
 
 
 def _official_web_sources() -> list[Adapter]:
     sources = [
-        OfficialWebSource(
-            source_id="fpl-power-tracker",
-            source_name="FPL Power Tracker",
-            url="https://www.fpl.com/my-account/web-outage.html",
-            selectors=("main", "#main-content", "body"),
-            relevance_terms=("miami-dade", "miami beach", "outage"),
-        ),
         OfficialWebSource(
             source_id="miami-beach-emergency-notifications",
             source_name="City of Miami Beach Emergency Notifications",
@@ -512,6 +482,7 @@ def _official_web_sources() -> list[Adapter]:
 def source_registry() -> list[Adapter]:
     return [
         PulsePointAdapter(),
+        *[EiaRegionDataAdapter(metric) for metric in ("D", "DF", "NG")],
         NwsAlertsAdapter(),
         NwsForecastAdapter(),
         NwsForecastAdapter(hourly=True),

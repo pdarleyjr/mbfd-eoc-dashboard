@@ -2,11 +2,13 @@ import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import httpx
 import pytest
 from shapely.geometry import shape
 
 from app.adapters.arcgis import ArcGisAdapter, ArcGisSource, DissolvingArcGisAdapter
 from app.adapters.coops import CoopsAdapter
+from app.adapters.eia import EiaRegionDataAdapter
 from app.adapters.nws import NwsAlertsAdapter
 from app.adapters.pulsepoint import PulsePointAdapter
 from app.adapters.web import OfficialWebAdapter, OfficialWebSource
@@ -23,6 +25,74 @@ def test_pulsepoint_fixture_preserves_advisory_disclaimer_and_units() -> None:
     records = PulsePointAdapter().normalize(load_json("pulsepoint.json"), "a" * 64)
     assert records[0].payload["disclaimer"] == "PulsePoint advisory feed — not official CAD"
     assert records[0].payload["units"][0]["status"] == "Dispatched"
+
+
+async def test_eia_fetch_uses_server_key_but_sanitizes_snapshot_body() -> None:
+    source_payload = load_json("eia_region_data.json")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["api_key"] == "server-secret"
+        assert request.url.params["frequency"] == "local-hourly"
+        assert request.url.params["facets[respondent][]"] == "FPL"
+        assert request.url.params["facets[type][]"] == "D"
+        assert request.url.params["sort[0][column]"] == "period"
+        assert request.url.params["sort[0][direction]"] == "desc"
+        return httpx.Response(200, json=source_payload, request=request)
+
+    adapter = EiaRegionDataAdapter("D", api_key="server-secret")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        fetched = await adapter.fetch(client)
+
+    assert b"server-secret" not in fetched.body
+    assert "api_key" not in fetched.parsed["request"]["params"]
+
+
+def test_eia_fixture_normalizes_fpl_scope_without_outage_claims() -> None:
+    adapter = EiaRegionDataAdapter("D", api_key="server-secret")
+    records = adapter.normalize(load_json("eia_region_data.json"), "e" * 64)
+
+    assert len(records) == 1
+    assert records[0].title == "FPL regional grid demand"
+    assert records[0].category == "power_grid_status"
+    assert records[0].observed_at is not None
+    assert records[0].observed_at.isoformat() == "2026-07-28T13:00:00+00:00"
+    assert records[0].payload == {
+        "respondent": "FPL",
+        "respondent_name": "Florida Power & Light Co.",
+        "metric_type": "D",
+        "metric_name": "Demand",
+        "value": 23418,
+        "unit": "megawatthours",
+        "period": "2026-07-28T09-04:00",
+        "frequency": "local-hourly",
+        "geographic_scope": "Florida Power & Light balancing authority",
+        "scope_note": "Regional grid indicator; not a Miami Beach customer-outage count",
+    }
+    assert "api_key" not in records[0].source_url
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"response": {"data": []}},
+        {
+            "response": {
+                "frequency": "local-hourly",
+                "data": [{"respondent": "MISO", "type": "D", "value": "1"}],
+            }
+        },
+        {
+            "response": {
+                "frequency": "local-hourly",
+                "data": [{"respondent": "FPL", "type": "D", "value": "not-a-number"}],
+            }
+        },
+    ],
+)
+def test_eia_rejects_empty_mismatched_or_non_numeric_data(payload: object) -> None:
+    with pytest.raises(UpstreamSchemaError):
+        EiaRegionDataAdapter("D", api_key="server-secret").normalize(payload, "f" * 64)
 
 
 def test_nws_alert_fixture_preserves_expiration() -> None:
@@ -211,6 +281,37 @@ def test_official_web_active_section_excludes_archive_content() -> None:
     assert len(records) == 1
     assert "100 Example Street" in records[0].payload["text"]
     assert "archived notice" not in records[0].payload["text"]
+
+
+def test_official_web_removes_cms_artifacts_and_builds_a_concise_title() -> None:
+    source = OfficialWebSource(
+        source_id="notice-fixture",
+        source_name="Official fixture",
+        url="https://example.gov/notices",
+        selectors=("main",),
+        relevance_terms=("miami-dade",),
+    )
+    html = """
+    <main>
+      ls:end[component-1700000000000]
+      ls:begin[component-1700000000001]
+      Miami-Dade DEM is monitoring potential Atlantic storms and will provide
+      updates if systems threaten the county. Residents should monitor official
+      channels for source-backed updates.
+      HTML
+    </main>
+    """
+
+    records = OfficialWebAdapter(source).normalize(html, "5" * 64)
+
+    assert records[0].title == (
+        "Miami-Dade DEM is monitoring potential Atlantic storms and will provide "
+        "updates if systems threaten the county."
+    )
+    assert "ls:end" not in records[0].payload["text"]
+    assert "ls:begin" not in records[0].payload["text"]
+    assert not records[0].payload["text"].endswith("HTML")
+    assert len(records[0].title) <= 180
 
 
 def test_official_web_informational_page_reports_no_current_records() -> None:

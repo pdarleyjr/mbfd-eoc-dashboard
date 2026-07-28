@@ -12,6 +12,7 @@ export type LayerKey =
   | 'pumps'
   | 'transit'
   | 'tropical'
+  | 'boundaries'
 
 type Density = 'compact' | 'comfortable'
 
@@ -27,6 +28,7 @@ const defaultLayers: Record<LayerKey, boolean> = {
   pumps: false,
   transit: false,
   tropical: true,
+  boundaries: true,
 }
 
 interface DashboardStore {

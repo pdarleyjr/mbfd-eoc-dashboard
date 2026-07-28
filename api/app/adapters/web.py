@@ -1,4 +1,5 @@
 import hashlib
+import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
@@ -12,6 +13,26 @@ from app.schemas import AuthorityLevel, CanonicalRecord, SourceType
 
 from .base import Adapter, FetchedPayload
 from .utils import compact_text, parse_datetime, stable_id, utc_now
+
+CMS_COMPONENT_ARTIFACT = re.compile(r"ls:(?:begin|end)\[[^\]]*]", re.IGNORECASE)
+TRAILING_HTML_ARTIFACT = re.compile(r"(?:\s+HTML)+\s*$", re.IGNORECASE)
+FIRST_SENTENCE = re.compile(r"^(.+?[.!?])(?:\s|$)", re.DOTALL)
+
+
+def clean_source_text(value: object, maximum: int = 5000) -> str:
+    text = CMS_COMPONENT_ARTIFACT.sub(" ", str(value or ""))
+    text = TRAILING_HTML_ARTIFACT.sub("", text)
+    return compact_text(text, maximum)
+
+
+def deterministic_title(value: object, maximum: int = 180) -> str:
+    text = clean_source_text(value, 5000)
+    sentence = FIRST_SENTENCE.match(text)
+    candidate = sentence.group(1) if sentence else text
+    if len(candidate) <= maximum:
+        return candidate
+    shortened = candidate[:maximum].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    return f"{shortened}…" if shortened else f"{candidate[: maximum - 1]}…"
 
 
 @dataclass(frozen=True)
@@ -97,7 +118,7 @@ class OfficialWebAdapter(Adapter):
         records: list[CanonicalRecord] = []
         seen: set[str] = set()
         for node in unique_nodes:
-            text = compact_text(node.get_text(" ", strip=True), 5000)
+            text = clean_source_text(node.get_text(" ", strip=True), 5000)
             if not text or text in seen:
                 continue
             seen.add(text)
@@ -123,8 +144,8 @@ class OfficialWebAdapter(Adapter):
                     authority_level=AuthorityLevel.SUPPLEMENTAL,
                     source_record_id=source_record_id,
                     source_url=source_url,
-                    title=compact_text(
-                        heading.get_text(" ", strip=True) if heading else text, 1000
+                    title=deterministic_title(
+                        clean_source_text(heading.get_text(" ", strip=True)) if heading else text
                     ),
                     category=self.category,
                     observed_at=None,

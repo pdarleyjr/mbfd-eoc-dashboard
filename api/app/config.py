@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     maxun_enabled: bool = False
     hermes_health_url: str = ""
     sentry_dsn: str = ""
+    eia_api_key: SecretStr = SecretStr("")
     user_agent: str = "MBFD-EOC/1.0 (operations-contact@mbfdhub.com)"
     docs_enabled: bool = True
     rate_limit_per_minute: int = 240

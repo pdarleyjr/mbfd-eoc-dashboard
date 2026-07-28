@@ -1,8 +1,9 @@
 # Data Sources
 
-All sources are public and unauthenticated. The live contract probe is
-`python scripts/probe_sources.py`. Empty valid collections remain empty and do not
-become an all-clear state.
+All source data is public. EIA requires a server-side API key; the other listed
+sources are unauthenticated. The live contract probe is
+`python scripts/probe_sources.py`. Empty valid collections remain empty and do
+not become an all-clear state.
 
 | Source | Authority | Poll / stale | Scope and mapping |
 | --- | --- | --- | --- |
@@ -12,7 +13,9 @@ become an all-clear state.
 | NOAA CO-OPS station 8723214 | Authoritative | 330 s observations, 6 h predictions / 15 min or 12 h | Water level, tide predictions, wind, air/water temperature, pressure; observed/predicted explicit |
 | NHC `CurrentStorms.json` | Authoritative | 5 min / 15 min | Current products only; empty list produces no tropical product |
 | FDEM Road Closures layers 0,1,4,5,6,7 | Authoritative | 60 s / 3 min | FHP/FL511 closures, crashes, congestion, construction, other; local geometry/corridor filter |
-| FDEM Florida Power Outages layer 0 | Authoritative | 5 min / 15 min | Miami-Dade aggregate only; source-provided `Pct_Out` |
+| EIA-930 FPL demand (`D`) | Authoritative regional grid data | 15 min / 2 h | Latest local-hourly Florida Power & Light balancing-authority demand; not a municipal or customer-outage feed |
+| EIA-930 FPL day-ahead demand forecast (`DF`) | Authoritative regional grid data | 15 min / 2 h | Latest local-hourly FPL balancing-authority forecast; not a municipal or customer-outage feed |
+| EIA-930 FPL net generation (`NG`) | Authoritative regional grid data | 15 min / 2 h | Latest local-hourly FPL balancing-authority generation; not a municipal or customer-outage feed |
 | FDEM Florida Hotels layer 0 | Authoritative inventory | 24 h / 48 h | Miami Beach/33139/33140 licensed locations and rooms; never occupancy |
 | Miami Beach Lane Closures layer 0 | Authoritative | 2 min / 10 min | Active published lane-closure records |
 | Miami Beach Stormwater layer 4 | Authoritative inventory | 6 h / 24 h | Named “Stormwater Pump Stations — Asset Inventory”; no operating state |
@@ -30,6 +33,8 @@ Publisher roots:
 - `https://api.weather.gov`
 - `https://api.tidesandcurrents.noaa.gov`
 - `https://www.nhc.noaa.gov`
+- `https://api.eia.gov/v2/electricity/rto/region-data/data/`
+- `https://www.eia.gov/electricity/gridmonitor/`
 - `https://services.arcgis.com/3wFbqsFPLeKqOlIK`
 - `https://gis.miamibeachfl.gov/public/rest/services`
 - `https://services.arcgis.com/8Pc9XBTAsYuxx9Ny`
@@ -46,6 +51,16 @@ The fragmented Preliminary FIRM polygon layers are dissolved by official
 `FLD_ZONE` class after complete retrieval. This preserves full class geometry
 while avoiding thousands of overlapping browser features; the payload records
 the number of source fragments represented.
+
+EIA requests require `EOC_EIA_API_KEY`, which is server-side only and is never
+compiled into the SPA. The adapter requests one newest `local-hourly` row for
+respondent `FPL` and metric `D`, `DF`, or `NG`, validates respondent/type,
+period, numeric value, and unit, and stores the EIA Grid Monitor as the official
+source link. EIA responses echo request parameters, so every recursively nested
+`api_key` field is removed before the sanitized response is serialized or saved
+as a raw snapshot. The previous FDEM outage layer and static FPL tracker are not
+registered; the dashboard explicitly labels EIA values as regional grid
+indicators rather than local outage counts.
 
 To add an adapter: implement `Adapter.fetch` and `normalize`, declare authority,
 poll/stale intervals, timeout, retry/circuit policy, empty semantics and scope;

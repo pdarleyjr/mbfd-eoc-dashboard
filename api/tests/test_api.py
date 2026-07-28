@@ -131,15 +131,27 @@ async def test_dashboard_summary_counts_only_supported_metrics(
         make_record("weather_alert"),
         make_record("lane_closure"),
         make_record("open_shelter"),
-        make_record("power_outage_summary", payload={"Pct_Out": 1.25}),
+        make_record(
+            "power_grid_status",
+            payload={
+                "metric_type": "D",
+                "value": 23418,
+                "unit": "megawatthours",
+                "scope_note": "Regional grid indicator; not a Miami Beach customer-outage count",
+            },
+        ),
     ]
     FakeRepository.health = [make_health()]
     monkeypatch.setattr(api, "Repository", FakeRepository)
 
     summary = await api.dashboard_summary(object())
 
-    assert [item.value for item in summary.kpis] == [1, 1, 1, 1, 1.25, 1]
+    assert [item.value for item in summary.kpis] == [1, 1, 1, 1, "23,418 MWh", 1]
     assert all(not item.unavailable for item in summary.kpis)
+    power = next(item for item in summary.kpis if item.id == "power")
+    assert power.label == "FPL Regional Grid Demand"
+    assert power.detail_category == "power_grid_status"
+    assert "not local outage" in power.source
 
 
 async def test_dashboard_summary_marks_power_unavailable(
