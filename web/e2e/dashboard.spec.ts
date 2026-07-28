@@ -144,6 +144,16 @@ test('keeps the map status clear of layer controls when configuration is absent'
 
 test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
   await page.goto('/')
+  const sourceHealthButton = page.getByRole('button', {
+    name: 'Open dashboard data-source health',
+  })
+  const sourceHealthBox = await sourceHealthButton.boundingBox()
+
+  expect(sourceHealthBox).not.toBeNull()
+  if (!sourceHealthBox) throw new Error('Data-source health control has no layout box')
+  expect(sourceHealthBox.width).toBeGreaterThanOrEqual(44)
+  expect(sourceHealthBox.height).toBeGreaterThanOrEqual(44)
+
   if (testInfo.project.name === 'tablet-landscape' || testInfo.project.name === 'webkit-1440') {
     // Touch emulation does not consistently synthesize hardware-Tab navigation.
     // Programmatic focus still proves the skip link remains focusable for paired keyboards.
