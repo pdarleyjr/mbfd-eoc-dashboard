@@ -111,6 +111,7 @@ class FakeSession:
 async def test_upsert_records_and_retire_absent_rows() -> None:
     absent = record_row()
     absent.source_record_id = "old"
+    original_expiry = absent.expires_at
     session = FakeSession(scalar_sets=[[absent]])
     repository = Repository(session)  # type: ignore[arg-type]
 
@@ -118,6 +119,21 @@ async def test_upsert_records_and_retire_absent_rows() -> None:
 
     assert count == 1
     assert len(session.executed) == 1
+    assert absent.stale is True
+    assert absent.expires_at is not None
+    assert original_expiry is not None
+    assert absent.expires_at < original_expiry
+    assert session.commits == 1
+
+
+async def test_successful_empty_response_retires_previous_rows() -> None:
+    absent = record_row()
+    session = FakeSession(scalar_sets=[[absent]])
+    repository = Repository(session)  # type: ignore[arg-type]
+
+    count = await repository.upsert_records("source", [], retire_missing=True)
+
+    assert count == 0
     assert absent.stale is True
     assert absent.expires_at is not None
     assert session.commits == 1

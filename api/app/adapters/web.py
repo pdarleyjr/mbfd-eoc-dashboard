@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
-from bs4.element import Tag
+from bs4.element import NavigableString, Tag
 
 from app.errors import UpstreamSchemaError
 from app.schemas import AuthorityLevel, CanonicalRecord, SourceType
@@ -23,6 +23,8 @@ class OfficialWebSource:
     category: str = "official_notice"
     poll_interval_seconds: int = 300
     stale_threshold_seconds: int = 900
+    active_section: tuple[str, str] | None = None
+    emit_records: bool = True
     relevance_terms: tuple[str, ...] = (
         "miami beach",
         "33139",
@@ -37,7 +39,9 @@ class OfficialWebAdapter(Adapter):
     source_type = SourceType.OFFICIAL_WEB_SCRAPE.value
     authority_level = AuthorityLevel.SUPPLEMENTAL.value
     schema_version = 1
-    retire_missing = False
+    # A validated current page replaces the previous extraction. Retaining
+    # changed page hashes indefinitely creates false current notices.
+    retire_missing = True
     timeout_seconds = 45
 
     def __init__(self, source: OfficialWebSource) -> None:
@@ -75,6 +79,20 @@ class OfficialWebAdapter(Adapter):
         unique_nodes = list(dict.fromkeys(nodes))
         if not unique_nodes:
             raise UpstreamSchemaError("Official webpage layout may have changed")
+        if not self.source.emit_records:
+            # Some approved pages are informational landing pages rather than
+            # active-notice feeds. Monitor their reachability/layout without
+            # presenting static instructions as a current operational notice.
+            return []
+        if self.source.active_section:
+            section_text = self._section_text(soup, *self.source.active_section)
+            if not section_text:
+                return []
+            section = BeautifulSoup(f"<article><p>{section_text}</p></article>", "html.parser")
+            article = section.find("article")
+            if not isinstance(article, Tag):
+                raise UpstreamSchemaError("Official webpage active section could not be parsed")
+            unique_nodes = [article]
         retrieved = utc_now()
         records: list[CanonicalRecord] = []
         seen: set[str] = set()
@@ -104,7 +122,7 @@ class OfficialWebAdapter(Adapter):
                     source_type=SourceType.OFFICIAL_WEB_SCRAPE,
                     authority_level=AuthorityLevel.SUPPLEMENTAL,
                     source_record_id=source_record_id,
-                    source_url=self.source.url,
+                    source_url=source_url,
                     title=compact_text(
                         heading.get_text(" ", strip=True) if heading else text, 1000
                     ),
@@ -130,3 +148,38 @@ class OfficialWebAdapter(Adapter):
                 )
             )
         return records
+
+    @staticmethod
+    def _section_text(soup: BeautifulSoup, start_heading: str, stop_heading: str) -> str:
+        headings = soup.find_all(["h1", "h2", "h3", "h4"])
+        start = next(
+            (
+                heading
+                for heading in headings
+                if compact_text(heading.get_text(" ", strip=True)).casefold()
+                == start_heading.casefold()
+            ),
+            None,
+        )
+        if not isinstance(start, Tag):
+            raise UpstreamSchemaError("Official webpage active-section heading changed")
+        pieces: list[str] = []
+        for element in start.next_elements:
+            if isinstance(element, Tag) and element.name in {"h1", "h2", "h3", "h4"}:
+                heading_text = compact_text(element.get_text(" ", strip=True))
+                if heading_text.casefold() == stop_heading.casefold():
+                    break
+            if (
+                isinstance(element, NavigableString)
+                and element.parent
+                and element.parent.name not in {"script", "style", "noscript"}
+            ):
+                value = compact_text(str(element))
+                if value:
+                    pieces.append(value)
+        text = compact_text(" ".join(pieces), 5000)
+        if text.casefold().startswith(start_heading.casefold()):
+            text = text[len(start_heading) :].strip()
+        if text.casefold().startswith("share:"):
+            text = text[6:].strip()
+        return text

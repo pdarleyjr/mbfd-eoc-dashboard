@@ -217,3 +217,50 @@ class ArcGisAdapter(Adapter):
         dlon = radians(lon2 - lon1)
         a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
         return 2 * radius_miles * asin(sqrt(a))
+
+
+class DissolvingArcGisAdapter(ArcGisAdapter):
+    """Dissolve same-class polygon fragments before browser delivery."""
+
+    def __init__(self, source: ArcGisSource, *, dissolve_field: str) -> None:
+        super().__init__(source)
+        self.dissolve_field = dissolve_field
+
+    def normalize(self, payload: Any, snapshot_hash: str) -> list[CanonicalRecord]:
+        records = super().normalize(payload, snapshot_hash)
+        grouped: dict[str, list[CanonicalRecord]] = {}
+        for record in records:
+            key = str(record.payload.get(self.dissolve_field) or record.title)
+            grouped.setdefault(key, []).append(record)
+
+        dissolved: list[CanonicalRecord] = []
+        for key, members in grouped.items():
+            geometries = [
+                shape(member.geography)
+                for member in members
+                if member.geography.get("type") in {"Polygon", "MultiPolygon"}
+            ]
+            if not geometries:
+                dissolved.extend(members)
+                continue
+            combined = make_valid(unary_union(geometries))
+            geography = json_safe(mapping(combined))
+            if not isinstance(geography, dict):
+                raise UpstreamSchemaError("ArcGIS dissolved polygon normalization failed")
+            first = members[0]
+            source_record_id = f"dissolved:{key}"
+            dissolved.append(
+                first.model_copy(
+                    update={
+                        "id": stable_id(self.source_id, source_record_id),
+                        "source_record_id": source_record_id,
+                        "geography": geography,
+                        "payload": {
+                            **first.payload,
+                            "dissolved_feature_count": len(members),
+                            "display_geometry": "dissolved by official flood-zone class",
+                        },
+                    }
+                )
+            )
+        return dissolved

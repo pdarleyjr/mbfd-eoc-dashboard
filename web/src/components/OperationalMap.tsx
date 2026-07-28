@@ -1,6 +1,6 @@
 import {MarkerClusterer} from '@googlemaps/markerclusterer'
 import {APIProvider, Map as GoogleMap, useMap} from '@vis.gl/react-google-maps'
-import {useEffect, useMemo} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import {Checkbox, Button} from '@fluentui/react-components'
 import {Location24Regular, Target20Regular} from '@fluentui/react-icons'
 import type {CanonicalRecord} from '../types'
@@ -98,7 +98,13 @@ function ClusteredPoints({
   return null
 }
 
-function ShapeLayer({records}: {records: CanonicalRecord[]}) {
+function ShapeLayer({
+  records,
+  onSelect,
+}: {
+  records: CanonicalRecord[]
+  onSelect: (id: string) => void
+}) {
   const map = useMap()
   useEffect(() => {
     if (!map) return
@@ -123,14 +129,33 @@ function ShapeLayer({records}: {records: CanonicalRecord[]}) {
     map.data.setStyle((feature: google.maps.Data.Feature) => {
       const category = feature.getProperty('category') as string
       return {
-        strokeColor: category === 'lane_closure' ? '#c63d2f' : '#1769c2',
+        clickable: true,
+        cursor: 'pointer',
+        strokeColor:
+          category === 'lane_closure'
+            ? '#c63d2f'
+            : category === 'evacuation_zone'
+              ? '#6750a4'
+              : '#1769c2',
         strokeWeight: category === 'lane_closure' ? 4 : 2,
-        fillColor: category === 'flood_zone' ? '#7eb6df' : '#6750a4',
-        fillOpacity: 0.16,
+        fillColor:
+          category === 'flood_zone'
+            ? '#4b9bd5'
+            : category === 'evacuation_zone'
+              ? '#8064b0'
+              : '#1769c2',
+        fillOpacity: category === 'municipal_boundary' ? 0.04 : 0.18,
       }
     })
-    return () => map.data.forEach((feature: google.maps.Data.Feature) => map.data.remove(feature))
-  }, [map, records])
+    const clickListener = map.data.addListener('click', (event: google.maps.Data.MouseEvent) => {
+      const id = event.feature.getId()
+      if (typeof id === 'string') onSelect(id)
+    })
+    return () => {
+      clickListener.remove()
+      map.data.forEach((feature: google.maps.Data.Feature) => map.data.remove(feature))
+    }
+  }, [map, onSelect, records])
   return null
 }
 
@@ -163,6 +188,8 @@ function FocusControls() {
 }
 
 export function OperationalMap({records}: {records: CanonicalRecord[]}) {
+  const [mapLoadFailed, setMapLoadFailed] = useState(false)
+  const [mapLoaded, setMapLoaded] = useState(false)
   const layers = useDashboardStore((state) => state.layers)
   const toggleLayer = useDashboardStore((state) => state.toggleLayer)
   const selectRecord = useDashboardStore((state) => state.selectRecord)
@@ -196,17 +223,27 @@ export function OperationalMap({records}: {records: CanonicalRecord[]}) {
             />
           ))}
         </aside>
-        {!mapKey || !mapId ? (
+        {!mapKey || !mapId || mapLoadFailed ? (
           <div className="map-config-error" role="status">
             <Location24Regular aria-hidden />
-            <strong>Google Maps configuration is unavailable</strong>
+            <strong>
+              {mapLoadFailed
+                ? 'Google Maps could not authenticate'
+                : 'Google Maps configuration is unavailable'}
+            </strong>
             <span>
-              Set the referrer-restricted browser key and Map ID. Operational lists remain
-              available.
+              {mapLoadFailed
+                ? 'Verify the EOC referrer restriction, Maps JavaScript API, billing, and production Map ID. Operational lists remain available.'
+                : 'Set the referrer-restricted browser key and production Map ID. Operational lists remain available.'}
             </span>
           </div>
         ) : (
-          <APIProvider apiKey={mapKey} libraries={['marker']}>
+          <APIProvider
+            apiKey={mapKey}
+            libraries={['marker']}
+            onLoad={() => setMapLoaded(true)}
+            onError={() => setMapLoadFailed(true)}
+          >
             <GoogleMap
               defaultCenter={{lat: 25.7907, lng: -80.13}}
               defaultZoom={12}
@@ -218,9 +255,14 @@ export function OperationalMap({records}: {records: CanonicalRecord[]}) {
               aria-label="Miami Beach operational map"
             >
               <ClusteredPoints records={visible} onSelect={selectRecord} />
-              <ShapeLayer records={visible} />
+              <ShapeLayer records={visible} onSelect={selectRecord} />
               <FocusControls />
             </GoogleMap>
+            {!mapLoaded && (
+              <div className="map-loading-overlay" role="status">
+                Loading Google Maps…
+              </div>
+            )}
           </APIProvider>
         )}
       </div>

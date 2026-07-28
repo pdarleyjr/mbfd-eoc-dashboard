@@ -8,7 +8,7 @@ import pytest
 from app.adapters.base import Adapter, FetchedPayload
 from app.config import Settings
 from app.errors import UpstreamSchemaError
-from app.ingestion import IngestionRunner
+from app.ingestion import MAX_CIRCUIT_COOLDOWN_SECONDS, IngestionRunner, circuit_cooldown_seconds
 from app.schemas import (
     AuthorityLevel,
     CanonicalRecord,
@@ -218,3 +218,12 @@ async def test_layout_failure_and_safe_errors(tmp_path: Path) -> None:
     assert ingestion._safe_error(status) == "Source returned HTTP 503"
     assert ingestion._safe_error(RuntimeError("secret")) == "Source temporarily unavailable"
     await ingestion.client.aclose()
+
+
+def test_circuit_cooldown_does_not_suppress_slow_sources_for_days() -> None:
+    fast = DummyAdapter()
+    slow = DummyAdapter()
+    slow.poll_interval_seconds = 86400
+
+    assert circuit_cooldown_seconds(fast) == fast.poll_interval_seconds
+    assert circuit_cooldown_seconds(slow) == MAX_CIRCUIT_COOLDOWN_SECONDS

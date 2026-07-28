@@ -82,11 +82,11 @@ class FakeRepository:
         include_expired: bool = False,
         limit: int = 1000,
     ) -> list[CanonicalRecord]:
-        del include_expired, limit
+        del include_expired
         type(self).categories = categories
         if not categories:
-            return self.records
-        return [record for record in self.records if record.category in categories]
+            return self.records[:limit]
+        return [record for record in self.records if record.category in categories][:limit]
 
     async def list_health(self) -> list[SourceHealth]:
         return self.health
@@ -155,6 +155,29 @@ async def test_dashboard_summary_marks_power_unavailable(
     assert power.unavailable is True
     assert summary.metadata.empty_state == "No current records returned by source"
     assert summary.metadata.source_health is SourceHealthState.UNAVAILABLE
+
+
+async def test_dashboard_summary_keeps_categories_fairly_represented(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forecasts = [
+        make_record("forecast").model_copy(
+            update={
+                "id": f"forecast-{index}",
+                "source_record_id": f"forecast-{index}",
+            }
+        )
+        for index in range(75)
+    ]
+    road = make_record("lane_closure")
+    FakeRepository.records = [*forecasts, road]
+    FakeRepository.health = [make_health()]
+    monkeypatch.setattr(api, "Repository", FakeRepository)
+
+    summary = await api.dashboard_summary(object())
+
+    assert len([record for record in summary.records if record.category == "forecast"]) == 40
+    assert road in summary.records
 
 
 async def test_source_health_and_version(monkeypatch: pytest.MonkeyPatch) -> None:

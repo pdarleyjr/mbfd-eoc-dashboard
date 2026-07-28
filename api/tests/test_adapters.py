@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from shapely.geometry import shape
 
-from app.adapters.arcgis import ArcGisAdapter, ArcGisSource
+from app.adapters.arcgis import ArcGisAdapter, ArcGisSource, DissolvingArcGisAdapter
 from app.adapters.coops import CoopsAdapter
 from app.adapters.nws import NwsAlertsAdapter
 from app.adapters.pulsepoint import PulsePointAdapter
@@ -111,6 +111,42 @@ def test_arcgis_error_response_is_invalid() -> None:
         ArcGisAdapter(source).normalize({"error": {"message": "bad query"}}, "f" * 64)
 
 
+def test_arcgis_dissolves_same_class_polygon_fragments() -> None:
+    source = ArcGisSource(
+        source_id="flood-fixture",
+        source_name="Flood fixture",
+        url="https://example.gov/FeatureServer/0",
+        category="flood_zone",
+        title_field="FLD_ZONE",
+        include_fields=("FLD_ZONE",),
+    )
+    payload = {
+        "features": [
+            {
+                "attributes": {"OBJECTID": 1, "FLD_ZONE": "AE"},
+                "geometry": {
+                    "rings": [[[-80.14, 25.78], [-80.13, 25.78], [-80.13, 25.79], [-80.14, 25.78]]]
+                },
+            },
+            {
+                "attributes": {"OBJECTID": 2, "FLD_ZONE": "AE"},
+                "geometry": {
+                    "rings": [[[-80.13, 25.78], [-80.12, 25.78], [-80.12, 25.79], [-80.13, 25.78]]]
+                },
+            },
+        ]
+    }
+
+    records = DissolvingArcGisAdapter(source, dissolve_field="FLD_ZONE").normalize(
+        payload, "0" * 64
+    )
+
+    assert len(records) == 1
+    assert records[0].source_record_id == "dissolved:AE"
+    assert records[0].payload["dissolved_feature_count"] == 2
+    assert records[0].geography["type"] in {"Polygon", "MultiPolygon"}
+
+
 def test_official_web_fixture_is_supplemental_and_cites_url() -> None:
     source = OfficialWebSource(
         source_id="notice-fixture",
@@ -121,7 +157,7 @@ def test_official_web_fixture_is_supplemental_and_cites_url() -> None:
     html = (FIXTURES / "official_notice.html").read_text(encoding="utf-8")
     records = OfficialWebAdapter(source).normalize(html, "1" * 64)
     assert records[0].authority_level.value == "supplemental"
-    assert records[0].source_url == source.url
+    assert records[0].source_url == "https://example.gov/official-advisory"
 
 
 def test_official_web_missing_selector_reports_layout_change() -> None:
@@ -133,3 +169,46 @@ def test_official_web_missing_selector_reports_layout_change() -> None:
     )
     with pytest.raises(UpstreamSchemaError, match="layout"):
         OfficialWebAdapter(source).normalize("<html><body></body></html>", "2" * 64)
+
+
+def test_official_web_active_section_excludes_archive_content() -> None:
+    source = OfficialWebSource(
+        source_id="notice-fixture",
+        source_name="Official fixture",
+        url="https://example.gov/notices",
+        selectors=("main",),
+        active_section=("Current Notices", "Past Notices"),
+        relevance_terms=("miami beach",),
+    )
+    html = """
+    <main>
+      <h1>Current Notices</h1>
+      <p>Miami Beach water work affects 100 Example Street.</p>
+      <h2>Past Notices</h2>
+      <p>Miami Beach archived notice must not appear.</p>
+    </main>
+    """
+
+    records = OfficialWebAdapter(source).normalize(html, "3" * 64)
+
+    assert len(records) == 1
+    assert "100 Example Street" in records[0].payload["text"]
+    assert "archived notice" not in records[0].payload["text"]
+
+
+def test_official_web_informational_page_reports_no_current_records() -> None:
+    source = OfficialWebSource(
+        source_id="notice-fixture",
+        source_name="Official fixture",
+        url="https://example.gov/notices",
+        selectors=("main",),
+        emit_records=False,
+    )
+
+    assert (
+        OfficialWebAdapter(source).normalize(
+            "<main>Subscribe to Miami Beach notifications.</main>",
+            "4" * 64,
+        )
+        == []
+    )

@@ -50,6 +50,37 @@ CATEGORY_GROUPS: dict[str, list[str]] = {
     ],
 }
 
+# Keep every operational category represented even when a high-volume feed has
+# future-dated rows. Limits are category-specific display bounds, not source
+# record counts or claims about upstream completeness.
+DASHBOARD_CATEGORY_LIMITS: dict[str, int] = {
+    "pulsepoint_call": 100,
+    "weather_alert": 50,
+    "forecast": 40,
+    "coastal_observation": 100,
+    "tropical": 50,
+    "traffic_incident": 200,
+    "lane_closure": 200,
+    "power_outage_summary": 10,
+    "stormwater_pump_asset": 200,
+    "open_shelter": 100,
+    "evacuation_center": 100,
+    "hospital": 150,
+    "hotel": 300,
+    "transit": 500,
+    "official_notice": 100,
+    "flood_zone": 500,
+    "evacuation_zone": 250,
+    "municipal_boundary": 20,
+}
+
+
+async def _dashboard_records(repository: Repository) -> list[CanonicalRecord]:
+    records: list[CanonicalRecord] = []
+    for category, limit in DASHBOARD_CATEGORY_LIMITS.items():
+        records.extend(await repository.list_records([category], limit=limit))
+    return records
+
 
 def _metadata(records: list[CanonicalRecord], health: list[SourceHealth]) -> ResponseMetadata:
     now = datetime.now(UTC)
@@ -171,7 +202,7 @@ async def source_health(session: Session) -> list[SourceHealth]:
 @router.get("/api/v1/dashboard/summary", response_model=DashboardSummary)
 async def dashboard_summary(session: Session) -> DashboardSummary:
     repository = Repository(session)
-    records = await repository.list_records(limit=2500)
+    records = await _dashboard_records(repository)
     health = await repository.list_health()
     active_calls = [
         record

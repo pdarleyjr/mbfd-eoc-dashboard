@@ -53,16 +53,21 @@ class Repository:
                 },
             )
             await self.session.execute(statement)
-        if retire_missing and seen:
-            existing = await self.session.scalars(
-                select(CanonicalRecordRow).where(
-                    CanonicalRecordRow.source_id == source_id,
-                    CanonicalRecordRow.source_record_id.not_in(seen),
-                )
+        if retire_missing:
+            missing_query = select(CanonicalRecordRow).where(
+                CanonicalRecordRow.source_id == source_id
             )
+            if seen:
+                missing_query = missing_query.where(
+                    CanonicalRecordRow.source_record_id.not_in(seen)
+                )
+            existing = await self.session.scalars(missing_query)
             now = datetime.now(UTC)
             for row in existing:
-                row.expires_at = row.expires_at or now
+                # A successful complete source response is authoritative about
+                # membership. Retire absent rows immediately even when an old
+                # record carried a future upstream expiry.
+                row.expires_at = now
                 row.stale = True
                 row.stale_reason = "Record absent from a successful current source response"
         await self.session.commit()
@@ -84,11 +89,12 @@ class Repository:
                 (CanonicalRecordRow.expires_at.is_(None)) | (CanonicalRecordRow.expires_at > now)
             )
         query = query.order_by(
+            CanonicalRecordRow.stale.asc(),
             func.coalesce(
                 CanonicalRecordRow.observed_at,
                 CanonicalRecordRow.published_at,
                 CanonicalRecordRow.retrieved_at,
-            ).desc()
+            ).desc(),
         ).limit(limit)
         rows = (await self.session.scalars(query)).all()
         return [self._to_record(row) for row in rows]
@@ -160,10 +166,14 @@ class Repository:
         await self.session.commit()
 
     async def source_record_count(self, source_id: str) -> int:
+        now = datetime.now(UTC)
         count = await self.session.scalar(
             select(func.count())
             .select_from(CanonicalRecordRow)
-            .where(CanonicalRecordRow.source_id == source_id)
+            .where(
+                CanonicalRecordRow.source_id == source_id,
+                (CanonicalRecordRow.expires_at.is_(None)) | (CanonicalRecordRow.expires_at > now),
+            )
         )
         return int(count or 0)
 

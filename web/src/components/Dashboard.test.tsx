@@ -109,8 +109,16 @@ const richSummary: DashboardSummary = {
     record('water', 'coastal_observation', {product: 'water_level', v: 1.2}),
     record('wind', 'coastal_observation', {product: 'wind', s: 12}),
     record('alert', 'weather_alert'),
-    record('road', 'lane_closure', {status: 'closed'}, true),
-    record('notice', 'official_notice'),
+    record(
+      'road',
+      'lane_closure',
+      {
+        status: 'closed',
+        text: `Grounded official source excerpt ${'with readable details '.repeat(50)}`,
+      },
+      true,
+    ),
+    record('notice', 'official_notice', {text: 'Short official source excerpt.'}),
     record('shelter', 'open_shelter'),
     record('hospital', 'hospital'),
     record('power', 'power_outage_summary', {Pct_Out: 1.25}),
@@ -177,12 +185,24 @@ describe('Dashboard', () => {
     expect(screen.getByText('Scattered storms')).toBeVisible()
     expect(screen.getAllByText('Showing cached information', {exact: false})[0]).toBeVisible()
     expect(screen.getByText('Refresh failed', {exact: false})).toBeVisible()
+    expect(screen.getByRole('heading', {name: 'Source excerpt'})).toBeVisible()
+    fireEvent.click(screen.getByText('Show full extracted source text'))
+    expect(screen.getAllByText(/Grounded official source excerpt/).length).toBeGreaterThan(0)
     expect(screen.getByRole('link', {name: 'Open official source'})).toHaveAttribute(
       'href',
       'https://example.gov/data',
     )
     fireEvent.click(screen.getByRole('button', {name: 'Close record details'}))
     expect(useDashboardStore.getState().selectedRecordId).toBeNull()
+  })
+
+  it('keeps a short source excerpt readable without an unnecessary expander', () => {
+    queryResult = {...queryResult, data: richSummary}
+    useDashboardStore.getState().selectRecord('notice')
+    renderDashboard()
+
+    expect(screen.getByText('Short official source excerpt.')).toBeVisible()
+    expect(screen.queryByText('Show full extracted source text')).not.toBeInTheDocument()
   })
 
   it('opens source health and settings through keyboard-accessible controls', () => {

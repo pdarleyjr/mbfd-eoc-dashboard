@@ -31,6 +31,20 @@ export default defineConfig({
       },
     },
     {
+      name: 'mobile-390',
+      use: {
+        ...devices['Pixel 7'],
+        viewport: {width: 390, height: 844},
+      },
+    },
+    {
+      name: 'webkit-1440',
+      use: {
+        ...devices['Desktop Safari'],
+        viewport: {width: 1440, height: 900},
+      },
+    },
+    {
       name: 'reduced-motion',
       use: {
         ...devices['Desktop Chrome'],

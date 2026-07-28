@@ -6,8 +6,31 @@ from app.registry import source_registry
 def test_registry_has_no_duplicate_source_ids() -> None:
     sources = source_registry()
     ids = [source.source_id for source in sources]
-    assert len(sources) == 36
+    assert len(sources) == 42
     assert len(ids) == len(set(ids))
+
+
+def test_city_preliminary_firm_layers_are_spatially_bounded_and_labeled() -> None:
+    sources = [
+        source
+        for source in source_registry()
+        if source.source_id.startswith("miami-beach-preliminary-firm-2024-")
+    ]
+
+    assert len(sources) == 6
+    assert all(source.category == "flood_zone" for source in sources)
+    assert all("Preliminary FIRM 2024" in source.source_name for source in sources)
+    assert all("geometry" in parse_qs(urlparse(source.url).query) for source in sources)
+
+
+def test_evacuation_center_inventory_uses_current_public_feature_service() -> None:
+    source = next(
+        source
+        for source in source_registry()
+        if source.source_id == "miami-dade-evacuation-centers"
+    )
+
+    assert "EvacuationCenter_gdb/FeatureServer/0/query" in source.url
 
 
 def test_registry_covers_required_operational_categories() -> None:

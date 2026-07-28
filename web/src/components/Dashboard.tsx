@@ -305,11 +305,21 @@ function SettingsDrawer() {
 
 function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
   const selectRecord = useDashboardStore((state) => state.selectRecord)
+  const sourceText = typeof record?.payload.text === 'string' ? record.payload.text : null
+  const payloadEntries = record
+    ? Object.entries(record.payload)
+        .filter(
+          ([key, value]) =>
+            key !== 'text' && ['string', 'number', 'boolean'].includes(typeof value),
+        )
+        .slice(0, 24)
+    : []
   return (
     <Drawer
       type="overlay"
       position="end"
-      size="medium"
+      size="large"
+      className="detail-drawer"
       open={Boolean(record)}
       onOpenChange={(_, data) => {
         if (!data.open) selectRecord(null)
@@ -332,6 +342,12 @@ function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
             </DrawerHeaderTitle>
           </DrawerHeader>
           <DrawerBody>
+            <div className="record-provenance">
+              <span className={`authority-badge authority-badge-${record.authority_level}`}>
+                {record.authority_level}
+              </span>
+              <span>{record.source_name}</span>
+            </div>
             {record.stale && (
               <div className="degraded-banner">
                 Showing cached information. {record.stale_reason ?? 'Source is stale.'}
@@ -360,16 +376,25 @@ function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
               </div>
             </dl>
             <div className="payload-grid">
-              {Object.entries(record.payload)
-                .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
-                .slice(0, 18)
-                .map(([key, value]) => (
-                  <div key={key}>
-                    <span>{key.replaceAll('_', ' ')}</span>
-                    <strong>{valueText(value)}</strong>
-                  </div>
-                ))}
+              {payloadEntries.map(([key, value]) => (
+                <div key={key}>
+                  <span>{key.replaceAll('_', ' ')}</span>
+                  <strong>{valueText(value)}</strong>
+                </div>
+              ))}
             </div>
+            {sourceText && (
+              <section className="source-excerpt" aria-labelledby="source-excerpt-heading">
+                <h3 id="source-excerpt-heading">Source excerpt</h3>
+                <p>{sourceText.slice(0, 700)}</p>
+                {sourceText.length > 700 && (
+                  <details>
+                    <summary>Show full extracted source text</summary>
+                    <p>{sourceText}</p>
+                  </details>
+                )}
+              </section>
+            )}
             <a href={record.source_url} target="_blank" rel="noreferrer" className="source-link">
               Open official source
             </a>
@@ -436,6 +461,7 @@ export function Dashboard() {
           <StatusPill state={sourceState} />
           <Tooltip content="Dashboard data-source health" relationship="label">
             <Button
+              className="header-icon-button"
               appearance="subtle"
               icon={<Database24Regular />}
               aria-label="Open dashboard data-source health"
@@ -444,6 +470,7 @@ export function Dashboard() {
           </Tooltip>
           <Tooltip content="Full-screen kiosk view" relationship="label">
             <Button
+              className="header-icon-button fullscreen-button"
               appearance="subtle"
               icon={<ArrowMaximize24Regular />}
               aria-label="Toggle full-screen kiosk view"
@@ -452,6 +479,7 @@ export function Dashboard() {
           </Tooltip>
           <Tooltip content="Dashboard settings" relationship="label">
             <Button
+              className="header-icon-button"
               appearance="subtle"
               icon={<Settings24Regular />}
               aria-label="Open dashboard settings"

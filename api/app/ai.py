@@ -46,6 +46,9 @@ class OllamaGroundingError(RuntimeError):
 
 
 class OllamaNormalizer:
+    request_timeout_seconds = 180
+    source_text_limit = 12000
+
     def __init__(
         self,
         base_url: str,
@@ -79,14 +82,20 @@ class OllamaNormalizer:
             "or missing times. Cite only the provided source record IDs. "
             "Use a verbatim substring of PUBLIC SOURCE TEXT for every supporting_text value. "
             f"Allowed source record IDs: {sorted(source_record_ids)}\n"
-            f"PUBLIC SOURCE TEXT:\n{source_text[:24000]}"
+            f"PUBLIC SOURCE TEXT:\n{source_text[: self.source_text_limit]}"
         )
         payload = {
             "model": self.model,
             "stream": False,
             "think": False,
+            # Avoid repeated two-minute cold starts during an active EOC shift.
+            "keep_alive": "30m",
             "format": schema,
-            "options": {"temperature": 0.1, "num_ctx": 32768},
+            "options": {
+                "temperature": 0.1,
+                "num_ctx": 16384,
+                "num_predict": 800,
+            },
             "messages": [{"role": "user", "content": prompt}],
         }
         last_error: Exception | None = None
@@ -95,7 +104,7 @@ class OllamaNormalizer:
                 response = await self.client.post(
                     f"{self.base_url}/api/chat",
                     json=payload,
-                    timeout=240,
+                    timeout=httpx.Timeout(self.request_timeout_seconds, connect=5),
                 )
                 response.raise_for_status()
                 content = response.json().get("message", {}).get("content")
@@ -107,7 +116,26 @@ class OllamaNormalizer:
                     raise OllamaGroundingError("AI cited an unknown source record ID")
                 if any(item.supporting_text not in source_text for item in result.evidence):
                     raise OllamaGroundingError("AI evidence is not verbatim source support")
+                source_lower = source_text.lower()
+                claimed_values = [
+                    *result.locations,
+                    *result.roads_or_causeways,
+                    *([result.explicitly_stated_start] if result.explicitly_stated_start else []),
+                    *(
+                        [result.explicitly_stated_expiration]
+                        if result.explicitly_stated_expiration
+                        else []
+                    ),
+                ]
+                if any(value.lower() not in source_lower for value in claimed_values):
+                    raise OllamaGroundingError(
+                        "AI returned a location, corridor, or time absent from source text"
+                    )
                 return result
+            except httpx.TimeoutException as exc:
+                # A second full model timeout can extend a scrape-audit job by
+                # several minutes without improving correctness.
+                raise OllamaGroundingError("Ollama request timed out") from exc
             except (
                 httpx.HTTPError,
                 json.JSONDecodeError,

@@ -17,10 +17,11 @@ become an all-clear state.
 | Miami Beach Lane Closures layer 0 | Authoritative | 2 min / 10 min | Active published lane-closure records |
 | Miami Beach Stormwater layer 4 | Authoritative inventory | 6 h / 24 h | Named “Stormwater Pump Stations — Asset Inventory”; no operating state |
 | Miami Beach Flood Zones layer 0 | Authoritative inventory | 24 h / 48 h | Published polygon geometry |
+| Miami Beach Preliminary FIRM 2024 layers 1, 3–7 | Authoritative preliminary inventory | 24 h / 48 h | LIMWA plus AE, AO, VE, and X hazard geometries; explicitly labeled preliminary and spatially bounded to the Miami Beach operating area |
 | Miami-Dade Municipal Boundary layer 0 | Authoritative inventory | 24 h / 48 h | Miami Beach boundary geometry |
 | Miami-Dade Hurricane Evacuation Zones layer 0 | Authoritative inventory | 24 h / 48 h | Published zones; not an evacuation order |
 | Miami-Dade Hospitals layer 0 | Authoritative inventory | 24 h / 48 h | Name/location/category only; capacity/diversion fields excluded |
-| Miami-Dade evacuation centers map layer 78 | Authoritative inventory | 6 h / 24 h | Static inventory; distinct from open shelters |
+| Miami-Dade EvacuationCenter_gdb layer 0 | Authoritative inventory | 6 h / 24 h | Current public FeatureServer replacing retired 311CRM layer 78; static inventory and distinct from open shelters |
 | FEMA OpenShelters layer 0 | Authoritative | 5 min / 15 min | Florida source-status records; zero records does not mean no shelters exist |
 | Miami-Dade static GTFS | Authoritative schedule | 6 h / 12 h | Miami Beach-relevant routes, stops and shapes; no Swiftly real-time data |
 
@@ -40,6 +41,11 @@ ArcGIS adapters request `outSR=4326`, validate feature/attribute structure, reta
 only configured fields for sensitive inventories, and document scope through the
 source-health registry. Representative sanitized fixtures live in
 `api/tests/fixtures`.
+
+The fragmented Preliminary FIRM polygon layers are dissolved by official
+`FLD_ZONE` class after complete retrieval. This preserves full class geometry
+while avoiding thousands of overlapping browser features; the payload records
+the number of source fragments represented.
 
 To add an adapter: implement `Adapter.fetch` and `normalize`, declare authority,
 poll/stale intervals, timeout, retry/circuit policy, empty semantics and scope;

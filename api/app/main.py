@@ -17,6 +17,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import Scope
 
@@ -55,6 +56,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.redis = Redis.from_url(settings.redis_url, decode_responses=True)
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 if not settings.production:
     app.add_middleware(

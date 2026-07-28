@@ -1,4 +1,4 @@
-from .adapters.arcgis import ArcGisAdapter, ArcGisSource
+from .adapters.arcgis import ArcGisAdapter, ArcGisSource, DissolvingArcGisAdapter
 from .adapters.base import Adapter
 from .adapters.coops import CoopsAdapter
 from .adapters.gtfs import MiamiDadeGtfsAdapter
@@ -106,6 +106,93 @@ def _road_sources() -> list[Adapter]:
     ]
 
 
+def _preliminary_firm_sources() -> list[Adapter]:
+    base = "https://gis.miamibeachfl.gov/public/rest/services/mb/PreliminaryFIRM2024/FeatureServer"
+    definitions = (
+        (
+            1,
+            "limwa",
+            "Limit of Moderate Wave Action",
+            "DFIRM_ID",
+            "Limit of Moderate Wave Action",
+            ("DFIRM_ID", "VERSION_ID", "LIMWA_ID", "SHOWN_FIRM", "SOURCE_CIT"),
+        ),
+        (
+            3,
+            "ae",
+            "AE — Special Flood Hazard Area with Base Flood Elevation",
+            "FLD_ZONE",
+            None,
+            ("DFIRM_ID", "FLD_AR_ID", "FLD_ZONE", "SFHA_TF", "STATIC_BFE", "V_DATUM"),
+        ),
+        (
+            4,
+            "ao",
+            "AO — Special Flood Hazard Area with Depth",
+            "FLD_ZONE",
+            None,
+            ("DFIRM_ID", "FLD_AR_ID", "FLD_ZONE", "SFHA_TF", "DEPTH", "LEN_UNIT"),
+        ),
+        (
+            5,
+            "ve",
+            "VE — Coastal Special Flood Hazard Area",
+            "FLD_ZONE",
+            None,
+            ("DFIRM_ID", "FLD_AR_ID", "FLD_ZONE", "SFHA_TF", "STATIC_BFE", "V_DATUM"),
+        ),
+        (
+            6,
+            "x-annual-chance",
+            "X — 0.2% to 1% Annual-Chance Flood Hazard",
+            "FLD_ZONE",
+            None,
+            ("DFIRM_ID", "FLD_AR_ID", "FLD_ZONE", "SFHA_TF", "Zone_Subty"),
+        ),
+        (
+            7,
+            "x-minimal",
+            "X — Area of Minimal Flood Hazard",
+            "FLD_ZONE",
+            None,
+            ("DFIRM_ID", "FLD_AR_ID", "FLD_ZONE", "SFHA_TF", "Zone_Subty"),
+        ),
+    )
+    return [
+        (
+            DissolvingArcGisAdapter(
+                ArcGisSource(
+                    source_id=f"miami-beach-preliminary-firm-2024-{slug}",
+                    source_name=f"City of Miami Beach Preliminary FIRM 2024 — {name}",
+                    url=f"{base}/{layer}",
+                    category="flood_zone",
+                    title_field=title_field,
+                    fixed_title=fixed_title,
+                    poll_interval_seconds=86400,
+                    stale_threshold_seconds=172800,
+                    include_fields=include_fields,
+                ),
+                dissolve_field="FLD_ZONE",
+            )
+            if layer != 1
+            else ArcGisAdapter(
+                ArcGisSource(
+                    source_id=f"miami-beach-preliminary-firm-2024-{slug}",
+                    source_name=f"City of Miami Beach Preliminary FIRM 2024 — {name}",
+                    url=f"{base}/{layer}",
+                    category="flood_zone",
+                    title_field=title_field,
+                    fixed_title=fixed_title,
+                    poll_interval_seconds=86400,
+                    stale_threshold_seconds=172800,
+                    include_fields=include_fields,
+                )
+            )
+        )
+        for layer, slug, name, title_field, fixed_title, include_fields in definitions
+    ]
+
+
 def _arcgis_sources() -> list[Adapter]:
     return [
         ArcGisAdapter(
@@ -173,6 +260,7 @@ def _arcgis_sources() -> list[Adapter]:
                 stale_threshold_seconds=172800,
             )
         ),
+        *_preliminary_firm_sources(),
         ArcGisAdapter(
             ArcGisSource(
                 source_id="miami-beach-municipal-boundary",
@@ -203,7 +291,6 @@ def _arcgis_sources() -> list[Adapter]:
                 observed_field="MODIFYDATE",
                 poll_interval_seconds=86400,
                 stale_threshold_seconds=172800,
-                geographic_scope=False,
                 include_fields=("CATEGORY", "ZONEID", "COLOR", "MODIFYDATE"),
             )
         ),
@@ -285,7 +372,10 @@ def _arcgis_sources() -> list[Adapter]:
             ArcGisSource(
                 source_id="miami-dade-evacuation-centers",
                 source_name="Miami-Dade Evacuation Center Inventory",
-                url=("https://giswspro.miamidade.gov/arcgis/rest/services/311/311CRM/MapServer/78"),
+                url=(
+                    "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/"
+                    "EvacuationCenter_gdb/FeatureServer/0"
+                ),
                 category="evacuation_center",
                 title_field="ShlName",
                 id_field="DataID",
@@ -346,6 +436,7 @@ def _official_web_sources() -> list[Adapter]:
             source_name="City of Miami Beach Emergency Notifications",
             url=("https://www.miamibeachfl.gov/city-hall/fire/emergency-management/notifications/"),
             selectors=("main article", "main .entry-content", "main"),
+            emit_records=False,
         ),
         OfficialWebSource(
             source_id="miami-beach-boil-water",
@@ -353,6 +444,7 @@ def _official_web_sources() -> list[Adapter]:
             url="https://www.miamibeachfl.gov/boil-water-notice/",
             selectors=("main article", "main .entry-content", "main"),
             relevance_terms=("boil water", "miami beach", "33139", "33140"),
+            active_section=("Precautionary Boil Water Notices", "Past Notices"),
         ),
         OfficialWebSource(
             source_id="miami-dade-emergency-activation",
@@ -360,6 +452,7 @@ def _official_web_sources() -> list[Adapter]:
             url="https://www.miamidade.gov/global/emergency/activation/home.page",
             selectors=("main article", "main .cmp-text", "main"),
             relevance_terms=("activation", "emergency", "miami-dade", "miami beach"),
+            active_section=("Emergency Operations Center (EOC)", "Statements & Releases"),
         ),
         OfficialWebSource(
             source_id="miami-dade-transit-updates",
@@ -368,6 +461,7 @@ def _official_web_sources() -> list[Adapter]:
             selectors=("main article", "main .cmp-text", "main"),
             category="transit",
             relevance_terms=("miami beach", "route", "service", "metrobus", "trolley"),
+            emit_records=False,
         ),
         OfficialWebSource(
             source_id="miami-dade-elevator-escalator",
@@ -379,6 +473,7 @@ def _official_web_sources() -> list[Adapter]:
             selectors=("main table", "main .cmp-text", "main"),
             category="transit",
             relevance_terms=("elevator", "escalator", "service", "station"),
+            emit_records=False,
         ),
         OfficialWebSource(
             source_id="miami-beach-traffic-advisories",
@@ -386,6 +481,7 @@ def _official_web_sources() -> list[Adapter]:
             url="https://www.miamibeachfl.gov/breakasweat/road-closures/",
             selectors=("main article", "main .entry-content", "main"),
             category="traffic_incident",
+            emit_records=False,
         ),
         OfficialWebSource(
             source_id="official-causeway-advisories",
@@ -397,6 +493,7 @@ def _official_web_sources() -> list[Adapter]:
             selectors=("main article", "main .cmp-text", "main"),
             category="traffic_incident",
             relevance_terms=("macarthur", "julia tuttle", "venetian", "causeway", "bridge"),
+            emit_records=False,
         ),
     ]
     return [OfficialWebAdapter(source) for source in sources]

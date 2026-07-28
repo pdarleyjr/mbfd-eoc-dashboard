@@ -24,6 +24,13 @@ from .schemas import (
 
 logger = structlog.get_logger()
 
+MAX_CIRCUIT_COOLDOWN_SECONDS = 900
+
+
+def circuit_cooldown_seconds(adapter: Adapter) -> int:
+    """Bound restart-time circuit suppression for infrequently polled sources."""
+    return max(1, min(adapter.poll_interval_seconds, MAX_CIRCUIT_COOLDOWN_SECONDS))
+
 
 class IngestionRunner:
     def __init__(
@@ -57,7 +64,7 @@ class IngestionRunner:
                     and previous.circuit_breaker_state is CircuitState.OPEN
                     and previous.last_attempt
                     and datetime.now(UTC)
-                    < previous.last_attempt + timedelta(seconds=adapter.poll_interval_seconds * 5)
+                    < previous.last_attempt + timedelta(seconds=circuit_cooldown_seconds(adapter))
                 ):
                     logger.info("source_poll_skipped_circuit", source_id=adapter.source_id)
                     return None
@@ -191,7 +198,7 @@ class IngestionRunner:
                 message=self._safe_error(error),
             ),
             circuit_open_until=(
-                now + timedelta(seconds=adapter.poll_interval_seconds * 5)
+                now + timedelta(seconds=circuit_cooldown_seconds(adapter))
                 if circuit is CircuitState.OPEN
                 else None
             ),

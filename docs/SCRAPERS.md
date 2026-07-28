@@ -20,6 +20,12 @@ retrieval time, and is filtered for Miami Beach, 33139, 33140, or an access
 corridor. A missing selector becomes `scraper_layout_changed`; an empty page is
 not a normal condition. Duplicate text is hashed and collapsed.
 
+Static subscription, project-information, or status landing pages are monitored
+for reachability and layout but do not emit an active operational record.
+Current/archive pages use bounded heading sections. A successful validated empty
+or changed extraction retires records absent from that response immediately;
+last-known-good records are retained only when the refresh itself fails.
+
 Repair procedure:
 
 1. Confirm the official URL and look for a supported JSON/RSS/XHR replacement.
