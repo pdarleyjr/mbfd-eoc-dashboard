@@ -15,6 +15,18 @@ from .registry import source_registry
 
 logger = structlog.get_logger()
 
+MIN_MISFIRE_GRACE_SECONDS = 60
+MAX_MISFIRE_GRACE_SECONDS = 600
+
+
+def misfire_grace_seconds(adapter: Adapter) -> int:
+    """Allow a delayed source to run once after bounded scheduler contention."""
+    expected_attempt_seconds = int(adapter.timeout_seconds * (adapter.retry_count + 1)) + 10
+    return min(
+        MAX_MISFIRE_GRACE_SECONDS,
+        max(MIN_MISFIRE_GRACE_SECONDS, expected_attempt_seconds),
+    )
+
 
 async def main() -> None:
     configure_logging()
@@ -50,6 +62,7 @@ async def main() -> None:
                 id=adapter.source_id,
                 max_instances=1,
                 coalesce=True,
+                misfire_grace_time=misfire_grace_seconds(adapter),
                 jitter=max(1, int(adapter.poll_interval_seconds * adapter.jitter_fraction)),
                 next_run_time=datetime.now(UTC) + timedelta(seconds=initial_delay),
             )

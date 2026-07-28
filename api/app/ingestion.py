@@ -96,7 +96,14 @@ class IngestionRunner:
                     len(fetched.body),
                     str(path),
                 )
-                records = adapter.normalize(fetched.parsed, snapshot_hash)
+                # Geometry normalization can be CPU-heavy (for example, dissolving
+                # thousands of ArcGIS polygons). Keep it off the scheduler's event
+                # loop so another source cannot miss its startup poll window.
+                records = await asyncio.to_thread(
+                    adapter.normalize,
+                    fetched.parsed,
+                    snapshot_hash,
+                )
                 effective_poll_interval = adapter.poll_interval_seconds
                 if adapter.source_id.startswith("pulsepoint"):
                     has_active = any(item.payload.get("state") == "active" for item in records)
