@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     pulsepoint_url: AnyHttpUrl = AnyHttpUrl(
         "https://pulsepoint-proxy.pdarleyjr.workers.dev/incidents"
     )
-    ollama_url: AnyHttpUrl = AnyHttpUrl("http://host.docker.internal:11434")
-    ollama_model: str = "qwen3.6:35b"
+    ollama_url: AnyHttpUrl = AnyHttpUrl("http://172.20.0.1:11437")
+    ollama_model: str = "qwen3.5:9b"
     maxun_url: AnyHttpUrl = AnyHttpUrl("http://eoc-maxun-backend:8080")
     maxun_enabled: bool = False
     hermes_health_url: str = ""

@@ -37,13 +37,15 @@ async def test_qwen_output_requires_grounded_source_evidence() -> None:
     extracted = await normalizer.extract(source, {"notice-1"})
 
     assert extracted.evidence[0].source_record_id == "notice-1"
-    assert route.calls[0].request.extensions["timeout"]["read"] == 180
+    assert route.calls[0].request.extensions["timeout"]["read"] == 90
     request_payload = json.loads(route.calls[0].request.content)
     assert request_payload["keep_alive"] == "30m"
-    assert request_payload["options"]["num_predict"] == 800
+    assert request_payload["options"]["num_ctx"] == 8192
+    assert request_payload["options"]["num_predict"] == 600
     assert request_payload["format"]["properties"]["classification"]
     assert '"classification"' in request_payload["messages"][0]["content"]
     assert "MUST NOT contain other keys" in request_payload["messages"][0]["content"]
+    assert "exact contiguous substring" in request_payload["messages"][0]["content"]
     await normalizer.close()
 
 

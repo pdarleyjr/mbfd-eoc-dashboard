@@ -117,15 +117,13 @@ volumes.
 
 ## Ollama/Qwen
 
-The production adapter called local Ollama model `qwen3.6:35b` with thinking
-disabled, streaming disabled, temperature 0.1, a 32,768-token context, a
-Pydantic JSON schema, and one bounded retry.
-
-A live production extraction of
-`Venetian Causeway work begins July 29.` returned `traffic_notice`, cited only
-the supplied record ID, used verbatim supporting text, and validated as
-`grounded`. A controlled invalid response with an invented record ID was
-rejected on both attempts (`invalid_attempts: 2`).
+The 2026-07-28 audit superseded the shared 35B configuration documented by the
+original rollout. Production now uses a dedicated `ollama-eoc.service` on the
+private `mbfd-ai` bridge with `qwen3.5:9b`, an 8K context, a 600-token output
+bound, and a 90-second single-request ceiling. The strict Pydantic schema,
+known-record-ID requirement, verbatim evidence check, and source-substring
+checks remain mandatory. See `TECHNICAL-AUDIT-2026-07-28.md` for the live
+contention diagnosis and acceptance timings.
 
 ## Maxun
 

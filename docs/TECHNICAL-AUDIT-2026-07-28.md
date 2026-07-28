@@ -26,7 +26,7 @@ an operational all-clear.
 | P2 | Map configuration message collided with layer controls | Desktop error-state padding reserved 14 rem on the right even though controls occupy the left. | The reserved space is now on the left; phone layout retains its separate bottom control tray. |
 | P2 | Detail cards were cramped and raw | A medium drawer placed raw fields in two narrow columns and allowed a multi-kilobyte `text` value to dominate a card. | The large responsive drawer separates provenance, metadata, structured fields, a 700-character excerpt, and an explicit full-text expander. |
 | P2 | Touch targets were below the project requirement | Header and map controls measured 32×32 px. | Primary header, layer, list, source-link, and map-focus controls now enforce a 44 px minimum target. |
-| P2 | AI cold-start behavior was not operationally responsive | A live grounded extraction took 122.68 s cold and 4.35 s warm. A timeout could be repeated for a total approaching eight minutes. | The normalizer keeps the model resident for 30 minutes, bounds context/output, uses a 180 s cold-start allowance, and never repeats a full transport timeout. Locations, corridors, and explicit times must now appear in source text as well as having verbatim evidence. |
+| P1 | Shared Ollama scheduling made AI responsiveness unreliable | A live grounded extraction took 122.68 s cold. Follow-up testing showed the shared 35B/16K runner being evicted by a separate 65K coding request; one extraction then timed out while Ollama spent about 121 s reloading. | EOC now has a persistent dedicated Ollama service on the private `mbfd-ai` bridge, using Qwen 3.5 9B at 8K context. The normalizer keeps it resident for 30 minutes, caps output at 600 tokens, permits one 90 s request, and never repeats a transport timeout. Host firewall scope is limited to the EOC Docker subnet. |
 | P3 | Main web bundle remains relatively large | Production build reports an approximately 557 KB minified main chunk. | The map is already lazy-loaded. Further Fluent component-level splitting is an optimization, not a functional release blocker. |
 
 ## Map and GIS implementation
@@ -97,8 +97,10 @@ Initial score: **23/40**.
 | Content/clarity | 2/4 | Static pages appeared current and raw keys dominated details |
 | Polish | 1/4 | Multi-second data payload and visible map-state collision |
 
-The release verification section records the post-repair score only after the
-responsive browser matrix is rerun against the deployed commit.
+Post-repair score: **38/40**. Layout, typography, affordance, responsive,
+accessibility, content clarity, and consistency scored 4/4 in the deployed
+browser matrix. Color remained 3/4 because authority requires redundant text,
+and polish remained 3/4 pending a rendered Google map and main-bundle splitting.
 
 ## AI and scraper integrity
 
@@ -110,6 +112,24 @@ AI remains supplemental and cannot make operational decisions. Its output must:
 - keep every claimed location, corridor, and explicit time present in the
   source text;
 - fail closed on malformed/unsupported content.
+
+The production inference lane is intentionally isolated from the GMKtec coding
+controller:
+
+- `ollama-eoc.service` is enabled with `Restart=always`;
+- it binds only `172.20.0.1:11437`;
+- UFW permits only `172.20.0.0/24` to that address/port;
+- Qwen 3.5 9B uses an 8K context and one loaded/parallel model;
+- the source validator requires locations, corridors, and times to be exact
+  contiguous source substrings in addition to verbatim evidence.
+
+The exact patched normalizer passed three live cases against this service:
+traffic closure, explicit no-closure, and utility repair. It returned correct
+classifications, source-only locations/corridors/times, permitted record IDs,
+and verbatim evidence. Measured latency was 67.94 s for the cold service load
+and 8.07–16.14 s warm. The rejected 3B candidates remain out of production:
+Qwen 2.5 paraphrased/invented structured values and Llama 3.2 mislabeled the
+closure as not relevant.
 
 Direct official APIs/GIS remain preferred. For approved public pages:
 
@@ -139,17 +159,30 @@ Local release checks completed on 2026-07-28:
 - The project dependency audits reported no known Python or npm
   vulnerabilities; the changed-file secret scan and `git diff --check` passed.
 
-Deployment evidence still required:
+The final deployment handoff records the immutable release SHA, tree, archive
+checksum, image identity, CI run, and rollback path. Production acceptance
+observed during this audit also included:
 
-- green GitHub CI for the exact commit
-- exact-tree image build, migration, rollout, restart/persistence, source-health,
-  response-size/timing, and version endpoint checks
-- Cloudflare Access policy preservation and authenticated production browser
-  verification
+- all 42 source-health rows healthy;
+- 1,127 displayed records across 14 categories with zero stale records;
+- 1,084 active geometries with zero invalid shapes;
+- a 584,821-byte compressed dashboard response in 0.188 s at origin;
+- restart-free, read-only API/worker containers under UID/GID 10001 with
+  `no-new-privileges`;
+- no worker scheduler/error warnings;
+- six live production profiles with eight non-overlapping panels, no horizontal
+  overflow, 44×44 px header controls, legible detail drawers, and zero browser
+  runtime errors;
+- one 24-hour Cloudflare Access application, one precedence-1 allow policy,
+  `pdarleyjr@gmail.com` present exactly once, and `onetimepin` as the only
+  identity-provider type;
+- an unauthenticated HTTPS edge request redirecting to Cloudflare Access with a
+  valid TLS chain.
 
 Residual gates that must not be inferred from automation:
 
 - Google Cloud key/referrer/Map ID change and rendered production map acceptance
+- authenticated edge-browser interaction after the next operator OTP login
 - physical EOC display and touch use
 - human operational-content review
 - native Safari device review

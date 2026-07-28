@@ -46,7 +46,7 @@ class OllamaGroundingError(RuntimeError):
 
 
 class OllamaNormalizer:
-    request_timeout_seconds = 180
+    request_timeout_seconds = 90
     source_text_limit = 12000
 
     def __init__(
@@ -81,6 +81,9 @@ class OllamaNormalizer:
             "Never infer route status, facility status, restoration, occupancy, coordinates, "
             "or missing times. Cite only the provided source record IDs. "
             "Use a verbatim substring of PUBLIC SOURCE TEXT for every supporting_text value. "
+            "Every locations, roads_or_causeways, explicitly_stated_start, and "
+            "explicitly_stated_expiration value must itself be an exact contiguous substring "
+            "of PUBLIC SOURCE TEXT; use an empty list or null instead of paraphrasing. "
             f"Allowed source record IDs: {sorted(source_record_ids)}\n"
             f"PUBLIC SOURCE TEXT:\n{source_text[: self.source_text_limit]}"
         )
@@ -93,8 +96,8 @@ class OllamaNormalizer:
             "format": schema,
             "options": {
                 "temperature": 0.1,
-                "num_ctx": 16384,
-                "num_predict": 800,
+                "num_ctx": 8192,
+                "num_predict": 600,
             },
             "messages": [{"role": "user", "content": prompt}],
         }
