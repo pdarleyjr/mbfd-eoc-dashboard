@@ -15,8 +15,11 @@ import {
 } from '../store/dashboardStore'
 import type {CanonicalRecord} from '../types'
 import {filterVisibleRecords} from './map/layers'
+import {configureLeafletDefaultIconAssets} from './map/leafletAssets'
 import {windowedRadarFrames} from './map/radar'
 import {RadarControls} from './map/RadarControls'
+
+configureLeafletDefaultIconAssets()
 
 const mapTileUrl =
   (import.meta.env.VITE_MAP_TILE_URL as string | undefined)?.trim() ||

@@ -120,6 +120,26 @@ const floodRecord = {
   payload: {zone: 'AE'},
 }
 
+const multiPointFacilityRecord = {
+  ...record,
+  id: 'facility-multipoint',
+  source_id: 'official-facilities',
+  source_name: 'Official Facilities Source',
+  source_record_id: 'facility-multipoint',
+  title: 'Hospital campus entrances',
+  category: 'hospital',
+  stale: false,
+  stale_reason: null,
+  geography: {
+    type: 'MultiPoint',
+    coordinates: [
+      [-80.141, 25.812],
+      [-80.14, 25.813],
+    ],
+  },
+  payload: {},
+}
+
 const noticeRecord = {
   ...record,
   id: 'notice-1',
@@ -207,6 +227,7 @@ const summary = {
     recentPulseRecord,
     laneLineRecord,
     floodRecord,
+    multiPointFacilityRecord,
     noticeRecord,
     powerRecord,
   ],
@@ -328,6 +349,7 @@ test.beforeEach(async ({page}) => {
 test('renders the keyless OpenStreetMap fallback and selects a mapped feature', async ({page}) => {
   const tileRequests: string[] = []
   const tileStatuses: number[] = []
+  const missingMarkerAssets: string[] = []
   page.on('request', (request) => {
     if (request.url().startsWith('https://tile.openstreetmap.org/')) {
       tileRequests.push(request.url())
@@ -336,6 +358,12 @@ test('renders the keyless OpenStreetMap fallback and selects a mapped feature', 
   page.on('response', (response) => {
     if (response.url().startsWith('https://tile.openstreetmap.org/')) {
       tileStatuses.push(response.status())
+    }
+    if (
+      response.status() >= 400 &&
+      /\/marker-(?:icon|shadow)(?:-[^/]+)?\.png$/.test(new URL(response.url()).pathname)
+    ) {
+      missingMarkerAssets.push(response.url())
     }
   })
   await page.goto('/')
@@ -353,6 +381,7 @@ test('renders the keyless OpenStreetMap fallback and selects a mapped feature', 
   ).toBe(true)
   expect(tileStatuses).toHaveLength(tileRequests.length)
   expect(tileStatuses.every((status) => status === 200)).toBe(true)
+  expect(missingMarkerAssets).toEqual([])
   if (process.env.EOC_TEST_REAL_OSM === '1') {
     await page.screenshot({path: 'test-results/real-osm-local.png'})
   }
