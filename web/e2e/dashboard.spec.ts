@@ -435,7 +435,7 @@ test('shows operational record content and synchronizes cards with map selection
       return Math.abs(markerAnchorY - (mapBox.y + mapBox.height / 2))
     })
     .toBeLessThan(60)
-  await page.getByRole('button', {name: 'Close record details'}).click()
+  await page.getByRole('button', {name: 'Close record details'}).click({force: true})
 
   const roadPanel = page.locator('.traffic-panel')
   await expect(
@@ -453,11 +453,13 @@ test('shows operational record content and synchronizes cards with map selection
   await line.focus()
   await line.press('Enter')
   await expect(detailDrawer).toBeVisible()
-  await page.getByRole('button', {name: 'Close record details'}).click()
+  await page.getByRole('button', {name: 'Close record details'}).click({force: true})
 
+  await page.getByRole('button', {name: 'Layer'}).click({force: true})
   const floodLayerToggle = page.getByRole('checkbox', {name: 'Flood zones'})
-  await floodLayerToggle.scrollIntoViewIfNeeded()
+  await floodLayerToggle.evaluate((element) => element.scrollIntoView({block: 'center'}))
   await floodLayerToggle.check({force: true})
+  await page.getByRole('button', {name: 'Layer'}).click({force: true})
   const floodZone = map.getByRole('button', {name: /Preliminary FIRM AE flood zone/i})
   await floodZone.focus()
   await floodZone.press('Enter')
@@ -477,19 +479,37 @@ test('loads honest source states and supports drawers and layer controls', async
   await expect(page.getByText('PulsePoint advisory feed — not official CAD')).toHaveCount(0)
   await expect(page.getByText('Showing cached information', {exact: false})).toBeVisible()
 
+  await page.getByRole('button', {name: 'Layer'}).click({force: true})
   const floodLayer = page.getByRole('checkbox', {name: 'Flood zones'})
   await expect(floodLayer).not.toBeChecked()
-  await floodLayer.check()
+  await floodLayer.evaluate((element) => element.scrollIntoView({block: 'center'}))
+  await floodLayer.check({force: true})
   await expect(floodLayer).toBeChecked()
+  await page.getByRole('button', {name: 'Layer'}).click({force: true})
 
   await page.getByRole('button', {name: /Verified lane restriction/}).click()
   await expect(page.getByRole('link', {name: 'Open official source'})).toBeVisible()
   await expect(page.getByRole('heading', {name: 'Source excerpt'})).toBeVisible()
   const drawer = page.locator('.detail-drawer')
   await expect(drawer).toBeVisible()
+  await expect
+    .poll(async () => {
+      const box = await drawer.boundingBox()
+      return (box?.x ?? 0) + (box?.width ?? 0)
+    })
+    .toBeLessThanOrEqual((page.viewportSize()?.width ?? 0) + 1)
   const drawerBox = await drawer.boundingBox()
   expect(drawerBox?.width).toBeGreaterThan(320)
-  await page.getByRole('button', {name: 'Close record details'}).click()
+  expect(drawerBox?.x).toBeGreaterThanOrEqual(0)
+  const closeDetailsBox = await page
+    .getByRole('button', {name: 'Close record details'})
+    .boundingBox()
+  expect(closeDetailsBox).not.toBeNull()
+  expect(closeDetailsBox?.x).toBeGreaterThanOrEqual(0)
+  expect((closeDetailsBox?.x ?? 0) + (closeDetailsBox?.width ?? 0)).toBeLessThanOrEqual(
+    (page.viewportSize()?.width ?? 0) + 1,
+  )
+  await page.getByRole('button', {name: 'Close record details'}).click({force: true})
 
   await page.getByRole('button', {name: 'Open dashboard data-source health'}).click()
   await expect(page.getByText('Source temporarily unavailable')).toBeVisible()
@@ -518,6 +538,7 @@ test('switches map modes, applies radar defaults, and starts animation only on r
   expect(radarRequests).toHaveLength(0)
 
   await page.getByRole('tab', {name: 'Radar'}).click()
+  await page.getByRole('button', {name: 'Layer'}).click()
   await expect(page.getByRole('checkbox', {name: 'MRMS radar'})).toBeChecked()
   await expect(page.getByRole('checkbox', {name: 'Weather alerts'})).toBeChecked()
   await expect(page.getByRole('checkbox', {name: 'Hospitals and hotels'})).not.toBeChecked()
@@ -547,6 +568,64 @@ test('switches map modes, applies radar defaults, and starts animation only on r
   }
 })
 
+test('collapses every over-map control into the Layer button', async ({page}) => {
+  await page.goto('/')
+
+  const layerButton = page.getByRole('button', {name: 'Layer'})
+  await expect(layerButton).toBeVisible()
+  await expect(layerButton).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByLabel('Map layers')).toHaveCount(0)
+  await expect(page.getByLabel('Causeway quick focus')).toHaveCount(0)
+  await expect(page.locator('.leaflet-control-zoom')).toBeHidden()
+
+  await page.getByRole('tab', {name: 'Radar'}).click()
+  await expect(page.getByRole('button', {name: 'Play radar animation'})).toHaveCount(0)
+
+  await layerButton.click()
+  await expect(layerButton).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByLabel('Map layers')).toBeVisible()
+  await expect(page.getByLabel('Causeway quick focus')).toBeVisible()
+  await expect(page.locator('.leaflet-control-zoom')).toBeVisible()
+  await expect(page.getByRole('button', {name: 'Play radar animation'})).toBeVisible()
+  const expandedOverlaps = await page.evaluate(() => {
+    const controls = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '.layer-toggle-button,.layer-list,.radar-controls,.causeway-focus,.leaflet-control-zoom',
+      ),
+    )
+      .filter((element) => getComputedStyle(element).display !== 'none')
+      .map((element) => {
+        const box = element.getBoundingClientRect()
+        return {
+          name: element.className,
+          left: box.left,
+          top: box.top,
+          right: box.right,
+          bottom: box.bottom,
+        }
+      })
+    const overlaps: Array<[string, string]> = []
+    for (let first = 0; first < controls.length; first += 1) {
+      for (let second = first + 1; second < controls.length; second += 1) {
+        const a = controls[first]
+        const b = controls[second]
+        const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+        const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+        if (overlapX > 2 && overlapY > 2) overlaps.push([a.name, b.name])
+      }
+    }
+    return overlaps
+  })
+  expect(expandedOverlaps).toEqual([])
+
+  await layerButton.click()
+  await expect(layerButton).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByLabel('Map layers')).toHaveCount(0)
+  await expect(page.getByLabel('Causeway quick focus')).toHaveCount(0)
+  await expect(page.locator('.leaflet-control-zoom')).toBeHidden()
+  await expect(page.getByRole('button', {name: 'Play radar animation'})).toHaveCount(0)
+})
+
 test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
   await page.goto('/')
   const sourceHealthButton = page.getByRole('button', {
@@ -559,13 +638,6 @@ test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
   expect(sourceHealthBox.width).toBeGreaterThanOrEqual(44)
   expect(sourceHealthBox.height).toBeGreaterThanOrEqual(44)
 
-  for (const label of ['MacArthur', 'Julia Tuttle', 'Venetian', 'Reset map to Miami Beach']) {
-    const quickFocusBox = await page.getByRole('button', {name: label}).boundingBox()
-    expect(quickFocusBox, `${label} quick-focus control has no layout box`).not.toBeNull()
-    expect(quickFocusBox?.width).toBeGreaterThanOrEqual(44)
-    expect(quickFocusBox?.height).toBeGreaterThanOrEqual(44)
-  }
-
   if (testInfo.project.name === 'tablet-landscape' || testInfo.project.name === 'webkit-1440') {
     // Touch emulation does not consistently synthesize hardware-Tab navigation.
     // Programmatic focus still proves the skip link remains focusable for paired keyboards.
@@ -576,10 +648,19 @@ test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
   const focused = page.locator(':focus')
   await expect(focused).toBeVisible()
   await expect(focused).toHaveAttribute('href', '#main-content')
+
+  await page.getByRole('button', {name: 'Layer'}).click()
+  for (const label of ['MacArthur', 'Julia Tuttle', 'Venetian', 'Reset map to Miami Beach']) {
+    const quickFocusBox = await page.getByRole('button', {name: label}).boundingBox()
+    expect(quickFocusBox, `${label} quick-focus control has no layout box`).not.toBeNull()
+    expect(quickFocusBox?.width).toBeGreaterThanOrEqual(44)
+    expect(quickFocusBox?.height).toBeGreaterThanOrEqual(44)
+  }
 })
 
 test('does not overlap dashboard panels or overflow horizontally', async ({page}) => {
   await page.goto('/')
+  await expect(page.locator('.weather-panel')).toBeVisible()
   const layout = await page.evaluate(() => {
     const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel,.kpi-tile')).map(
       (element) => {
@@ -607,11 +688,48 @@ test('does not overlap dashboard panels or overflow horizontally', async ({page}
       overlaps,
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
+      weather: Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.weather-decision-grid,.weather-panel > .weather-alert,.tide-decision-strip',
+        ),
+      ).map((element) => {
+        const box = element.getBoundingClientRect()
+        return {top: box.top, bottom: box.bottom}
+      }),
+      weatherPanel: (() => {
+        const box = document.querySelector<HTMLElement>('.weather-panel')?.getBoundingClientRect()
+        return box ? {top: box.top, bottom: box.bottom} : null
+      })(),
+      weatherOverflow: Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.weather-decision-grid,.weather-panel > .weather-alert,.tide-decision-strip',
+        ),
+      ).flatMap((container) => {
+        const bounds = container.getBoundingClientRect()
+        return Array.from(container.querySelectorAll<HTMLElement>('*'))
+          .filter((element) => {
+            const box = element.getBoundingClientRect()
+            return (
+              box.width > 0 &&
+              box.height > 0 &&
+              (box.top < bounds.top - 1 || box.bottom > bounds.bottom + 1)
+            )
+          })
+          .map((element) => element.className || element.tagName)
+      }),
     }
   })
 
   expect(layout.overlaps).toEqual([])
   expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
+  if ((page.viewportSize()?.width ?? 0) >= 1400) {
+    expect(layout.weatherPanel).not.toBeNull()
+    expect(layout.weather).toHaveLength(3)
+    expect(layout.weather[0].bottom).toBeLessThanOrEqual(layout.weather[1].top + 1)
+    expect(layout.weather[1].bottom).toBeLessThanOrEqual(layout.weather[2].top + 1)
+    expect(layout.weather[2].bottom).toBeLessThanOrEqual((layout.weatherPanel?.bottom ?? 0) + 1)
+    expect(layout.weatherOverflow).toEqual([])
+  }
 })
 
 test('keeps every bottom panel reachable without clipping record text', async ({page}) => {

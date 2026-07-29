@@ -179,7 +179,15 @@ function stringArray(value: unknown): string[] {
     : []
 }
 
-function RadarLayer({map, enabled}: {map: L.Map | null; enabled: boolean}) {
+function RadarLayer({
+  map,
+  enabled,
+  controlsVisible,
+}: {
+  map: L.Map | null
+  enabled: boolean
+  controlsVisible: boolean
+}) {
   const query = useRadarStatus(enabled)
   const record = query.data?.records[0]
   const frames = useMemo(() => stringArray(record?.payload.frame_times), [record])
@@ -282,7 +290,7 @@ function RadarLayer({map, enabled}: {map: L.Map | null; enabled: boolean}) {
     }
   }, [enabled, latestFrame, map, nextFrame, opacity, record, selectedFrame])
 
-  if (!enabled) return null
+  if (!enabled || !controlsVisible) return null
   return (
     <RadarControls
       selectedFrame={selectedFrame ?? latestFrame}
@@ -321,11 +329,13 @@ function LeafletMap({
   selectedRecordId,
   onSelect,
   mapMode,
+  controlsExpanded,
 }: {
   records: CanonicalRecord[]
   selectedRecordId: string | null
   onSelect: (id: string) => void
   mapMode: MapMode
+  controlsExpanded: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<L.Map | null>(null)
@@ -457,7 +467,7 @@ function LeafletMap({
   }, [map, onSelect, records, selectedRecordId])
 
   return (
-    <div className="leaflet-fallback">
+    <div className={`leaflet-fallback map-controls-${controlsExpanded ? 'expanded' : 'collapsed'}`}>
       <div
         ref={containerRef}
         className="leaflet-map"
@@ -472,8 +482,10 @@ function LeafletMap({
             : 'Loading configured basemap…'}
         </div>
       )}
-      {mapMode === 'radar' && <RadarLayer map={map} enabled />}
-      <QuickFocusControls onFocus={(lat, lng, zoom) => map?.setView([lat, lng], zoom)} />
+      {mapMode === 'radar' && <RadarLayer map={map} enabled controlsVisible={controlsExpanded} />}
+      {controlsExpanded && (
+        <QuickFocusControls onFocus={(lat, lng, zoom) => map?.setView([lat, lng], zoom)} />
+      )}
     </div>
   )
 }
@@ -486,6 +498,7 @@ export function OperationalMap({records}: {records: CanonicalRecord[]}) {
   const applyLayerPreset = useDashboardStore((state) => state.applyLayerPreset)
   const selectRecord = useDashboardStore((state) => state.selectRecord)
   const selectedRecordId = useDashboardStore((state) => state.selectedRecordId)
+  const [controlsExpanded, setControlsExpanded] = useState(false)
   const visible = useMemo(() => filterVisibleRecords(records, layers), [layers, records])
 
   return (
@@ -510,48 +523,61 @@ export function OperationalMap({records}: {records: CanonicalRecord[]}) {
         </TabList>
       </div>
       <div className="map-stage">
-        <aside className="layer-list" aria-label="Map layers">
-          <details className="layer-presets">
-            <summary>Operational presets</summary>
-            <div>
-              {presets.map(([value, label]) => (
-                <Button
-                  key={value}
-                  size="small"
-                  appearance="subtle"
-                  onClick={() => applyLayerPreset(value)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-          </details>
-          {layerGroups.map((group) => (
-            <details key={group.name} open>
-              <summary>{group.name}</summary>
+        <Button
+          className="layer-toggle-button"
+          size="small"
+          appearance="primary"
+          aria-expanded={controlsExpanded}
+          aria-controls="operational-map-controls"
+          onClick={() => setControlsExpanded((expanded) => !expanded)}
+        >
+          Layer
+        </Button>
+        {controlsExpanded && (
+          <aside id="operational-map-controls" className="layer-list" aria-label="Map layers">
+            <details className="layer-presets">
+              <summary>Operational presets</summary>
               <div>
-                {group.layers.map(([key, label]) => (
-                  <Checkbox
-                    key={key}
-                    checked={layers[key]}
-                    label={label}
-                    onChange={() => toggleLayer(key)}
-                  />
+                {presets.map(([value, label]) => (
+                  <Button
+                    key={value}
+                    size="small"
+                    appearance="subtle"
+                    onClick={() => applyLayerPreset(value)}
+                  >
+                    {label}
+                  </Button>
                 ))}
               </div>
             </details>
-          ))}
-          <span className="authority-legend" aria-label="Map authority legend">
-            <i className="legend-authoritative" /> Authoritative
-            <i className="legend-advisory" /> Advisory
-            <i className="legend-supplemental" /> Supplemental
-          </span>
-        </aside>
+            {layerGroups.map((group) => (
+              <details key={group.name} open>
+                <summary>{group.name}</summary>
+                <div>
+                  {group.layers.map(([key, label]) => (
+                    <Checkbox
+                      key={key}
+                      checked={layers[key]}
+                      label={label}
+                      onChange={() => toggleLayer(key)}
+                    />
+                  ))}
+                </div>
+              </details>
+            ))}
+            <span className="authority-legend" aria-label="Map authority legend">
+              <i className="legend-authoritative" /> Authoritative
+              <i className="legend-advisory" /> Advisory
+              <i className="legend-supplemental" /> Supplemental
+            </span>
+          </aside>
+        )}
         <LeafletMap
           records={visible}
           selectedRecordId={selectedRecordId}
           onSelect={selectRecord}
           mapMode={mapMode}
+          controlsExpanded={controlsExpanded}
         />
       </div>
     </section>
