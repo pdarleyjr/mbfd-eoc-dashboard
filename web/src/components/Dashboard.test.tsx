@@ -155,20 +155,20 @@ const richSummary: DashboardSummary = {
       }),
       observed_at: '2026-07-27T13:59:00Z',
     },
-    record('water', 'coastal_observation', {product: 'water_level', v: 1.2}),
+    record('water', 'coastal_observation', {product: 'water_level', v: '1.2'}),
     {
-      ...record('water-previous', 'coastal_observation', {product: 'water_level', v: 1.1}),
+      ...record('water-previous', 'coastal_observation', {product: 'water_level', v: '1.1'}),
       observed_at: '2026-07-27T13:52:00Z',
     },
     record('predicted-water', 'coastal_observation', {
       product: 'predicted_water_level',
-      v: 0.9,
+      v: '0.9',
     }),
     {
       ...record('high-tide', 'coastal_observation', {
         product: 'tide_predictions',
         tide_type: 'H',
-        v: 1.35,
+        v: '1.35',
       }),
       observed_at: '2026-07-27T17:00:00Z',
     },
@@ -176,7 +176,7 @@ const richSummary: DashboardSummary = {
       ...record('low-tide', 'coastal_observation', {
         product: 'tide_predictions',
         tide_type: 'L',
-        v: 0.1,
+        v: '0.1',
       }),
       observed_at: '2026-07-27T20:00:00Z',
     },
@@ -341,6 +341,8 @@ describe('Dashboard', () => {
     expect(screen.getByText(/Rising/)).toBeVisible()
     expect(screen.getByText(/Next high/)).toBeVisible()
     expect(screen.getByText(/Next low/)).toBeVisible()
+    expect(screen.getByText('1.35 m')).toBeVisible()
+    expect(screen.getByText('0.10 m')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', {name: 'View Radar'}))
     expect(useDashboardStore.getState().mapMode).toBe('radar')

@@ -1888,6 +1888,53 @@ input:focus-visible,
   }
 }
 
+@media (min-width: 87.51rem) and (max-height: 48rem) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    overflow: auto;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100dvh;
+    display: flex;
+    overflow: visible;
+  }
+
+  .dashboard-content {
+    height: auto;
+    max-height: none;
+    flex: 0 0 auto;
+    grid-template-rows: auto auto;
+    overflow: visible;
+  }
+
+  .dashboard-content:has(.immediate-attention) {
+    grid-template-rows: auto auto auto;
+  }
+
+  .dashboard-grid {
+    grid-template:
+      'map map' minmax(32rem, 52vh)
+      'weather traffic' minmax(16rem, auto)
+      'pulse notices' minmax(12rem, auto)
+      'facilities facilities' minmax(12rem, auto)
+      'utility health' minmax(12rem, auto)
+      / minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .panel {
+    min-height: 11rem;
+  }
+}
+
 @media (max-width: 64rem) {
   .app-header {
     align-items: flex-start;

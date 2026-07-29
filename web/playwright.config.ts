@@ -29,6 +29,10 @@ export default defineConfig({
       use: {...devices['Desktop Chrome'], viewport: {width: 1920, height: 900}},
     },
     {
+      name: 'desktop-1536-short',
+      use: {...devices['Desktop Chrome'], viewport: {width: 1536, height: 720}},
+    },
+    {
       name: 'laptop-1366',
       use: {...devices['Desktop Chrome'], viewport: {width: 1366, height: 768}},
     },

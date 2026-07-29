@@ -762,7 +762,8 @@ test('keeps every bottom panel reachable without clipping record text', async ({
     contentClientHeight:
       document.querySelector<HTMLElement>('.dashboard-content')?.clientHeight ?? 0,
   }))
-  if ((page.viewportSize()?.width ?? 0) >= 1400) {
+  const viewport = page.viewportSize()
+  if ((viewport?.width ?? 0) >= 1400 && (viewport?.height ?? 0) > 768) {
     expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1)
     expect(dimensions.contentScrollHeight).toBeLessThanOrEqual(dimensions.contentClientHeight + 1)
   } else {

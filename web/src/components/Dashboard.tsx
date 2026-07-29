@@ -354,9 +354,17 @@ function PowerGridStatus({records}: {records: CanonicalRecord[]}) {
 function measurement(record: CanonicalRecord | undefined, key: string): number | null {
   const raw = record?.payload[key]
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed)) return parsed
+  }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const value = (raw as Record<string, unknown>).value
     if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) return parsed
+    }
   }
   return null
 }
