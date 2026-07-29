@@ -1,4 +1,23 @@
-import {expect, test} from '@playwright/test'
+import {expect, test, type Page} from '@playwright/test'
+
+async function closeRecordDetails(page: Page) {
+  const closeButton = page.getByRole('button', {name: 'Close record details'})
+  await expect
+    .poll(async () => {
+      const box = await closeButton.boundingBox()
+      const viewport = page.viewportSize()
+      if (!box || !viewport) return false
+      return (
+        box.x >= 0 &&
+        box.y >= 0 &&
+        box.x + box.width <= viewport.width + 1 &&
+        box.y + box.height <= viewport.height + 1
+      )
+    })
+    .toBe(true)
+  await closeButton.click()
+  await expect(page.locator('.detail-drawer')).toBeHidden()
+}
 
 const now = '2026-07-27T14:00:00Z'
 const record = {
@@ -435,7 +454,7 @@ test('shows operational record content and synchronizes cards with map selection
       return Math.abs(markerAnchorY - (mapBox.y + mapBox.height / 2))
     })
     .toBeLessThan(60)
-  await page.getByRole('button', {name: 'Close record details'}).click({force: true})
+  await closeRecordDetails(page)
 
   const roadPanel = page.locator('.traffic-panel')
   await expect(
@@ -453,7 +472,7 @@ test('shows operational record content and synchronizes cards with map selection
   await line.focus()
   await line.press('Enter')
   await expect(detailDrawer).toBeVisible()
-  await page.getByRole('button', {name: 'Close record details'}).click({force: true})
+  await closeRecordDetails(page)
 
   await page.getByRole('button', {name: 'Layer'}).click({force: true})
   const floodLayerToggle = page.getByRole('checkbox', {name: 'Flood zones'})
@@ -509,7 +528,7 @@ test('loads honest source states and supports drawers and layer controls', async
   expect((closeDetailsBox?.x ?? 0) + (closeDetailsBox?.width ?? 0)).toBeLessThanOrEqual(
     (page.viewportSize()?.width ?? 0) + 1,
   )
-  await page.getByRole('button', {name: 'Close record details'}).click({force: true})
+  await closeRecordDetails(page)
 
   await page.getByRole('button', {name: 'Open dashboard data-source health'}).click()
   await expect(page.getByText('Source temporarily unavailable')).toBeVisible()

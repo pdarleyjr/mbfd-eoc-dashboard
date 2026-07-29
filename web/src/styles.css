@@ -1699,6 +1699,7 @@ input:focus-visible,
   min-width: 0;
   display: grid;
   gap: 0.08rem;
+  overflow: hidden;
   border-right: 1px solid var(--line);
   padding: 0.35rem 0.45rem;
 }
@@ -1708,9 +1709,20 @@ input:focus-visible,
 }
 
 .tide-decision-strip strong {
+  min-width: 0;
+  overflow: hidden;
   color: var(--navy-900);
   font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tide-decision-strip small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .power-grid-section {
