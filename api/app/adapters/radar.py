@@ -90,17 +90,25 @@ class NoaaRadarStatusAdapter(Adapter):
         if dimension is None or not dimension.text:
             raise UpstreamSchemaError("NOAA radar layer omitted its service-reported time extent")
 
-        parsed_frames = [parse_datetime(value.strip()) for value in dimension.text.split(",")]
+        frame_values = [value.strip() for value in dimension.text.split(",")]
+        parsed_frames = [parse_datetime(value) for value in frame_values]
         if any(frame is None for frame in parsed_frames):
             raise UpstreamSchemaError("NOAA radar layer returned an invalid frame timestamp")
-        frames = sorted({frame for frame in parsed_frames if frame is not None})
+        frame_tokens = {
+            frame: value
+            for frame, value in zip(parsed_frames, frame_values, strict=True)
+            if frame is not None
+        }
+        frames = sorted(frame_tokens)
         if not frames:
             raise UpstreamSchemaError("NOAA radar layer returned no available frames")
 
-        default_frame = parse_datetime(dimension.attrib.get("default"))
+        default_value = dimension.attrib.get("default")
+        default_frame = parse_datetime(default_value)
         latest = max(frames)
-        if default_frame is not None and default_frame > latest:
+        if default_frame is not None and default_value is not None and default_frame > latest:
             latest = default_frame
+            frame_tokens[default_frame] = default_value.strip()
             frames.append(default_frame)
             frames.sort()
 
@@ -155,10 +163,10 @@ class NoaaRadarStatusAdapter(Adapter):
                 schema_version=self.schema_version,
                 payload={
                     "service_available": True,
-                    "latest_frame_time": latest.isoformat(),
-                    "extent_start": frames[0].isoformat(),
-                    "extent_end": frames[-1].isoformat(),
-                    "frame_times": [frame.isoformat() for frame in frames],
+                    "latest_frame_time": frame_tokens[latest],
+                    "extent_start": frame_tokens[frames[0]],
+                    "extent_end": frame_tokens[frames[-1]],
+                    "frame_times": [frame_tokens[frame] for frame in frames],
                     "retrieved_at": retrieved.isoformat(),
                     "update_frequency_seconds": update_frequency,
                     "service_url": RADAR_WMS_URL,

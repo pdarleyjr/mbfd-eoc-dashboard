@@ -186,11 +186,12 @@ def test_radar_capabilities_emit_exact_service_reported_frames() -> None:
     assert record.category == "radar_status"
     assert record.observed_at.isoformat() == "2026-07-29T12:48:14+00:00"
     assert record.payload["frame_times"] == [
-        "2026-07-29T12:36:01+00:00",
-        "2026-07-29T12:40:03+00:00",
-        "2026-07-29T12:44:17+00:00",
-        "2026-07-29T12:48:14+00:00",
+        "2026-07-29T12:36:01.000Z",
+        "2026-07-29T12:40:03.000Z",
+        "2026-07-29T12:44:17.000Z",
+        "2026-07-29T12:48:14.000Z",
     ]
+    assert record.payload["latest_frame_time"] == "2026-07-29T12:48:14.000Z"
     assert record.payload["update_frequency_seconds"] == 240
     assert record.payload["layer_name"] == "conus_base_reflectivity_mosaic"
     assert record.payload["service_url"].startswith("https://nowcoast.noaa.gov/")
