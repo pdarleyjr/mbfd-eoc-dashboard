@@ -16,13 +16,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": [
-      "vite/client",
-      "vitest/globals",
-      "@testing-library/jest-dom",
-      "google.maps",
-      "geojson"
-    ]
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom", "geojson"]
   },
   "include": ["src"]
 }
