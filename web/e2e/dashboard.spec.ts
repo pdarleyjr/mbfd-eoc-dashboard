@@ -159,6 +159,20 @@ const multiPointFacilityRecord = {
   payload: {},
 }
 
+const hotelFacilityRecord = {
+  ...record,
+  id: 'facility-hotel',
+  source_id: 'official-hotels',
+  source_name: 'Official Hotel Source',
+  source_record_id: 'facility-hotel',
+  title: 'Island House',
+  category: 'hotel',
+  stale: false,
+  stale_reason: null,
+  geography: {},
+  payload: {},
+}
+
 const noticeRecord = {
   ...record,
   id: 'notice-1',
@@ -247,6 +261,7 @@ const summary = {
     laneLineRecord,
     floodRecord,
     multiPointFacilityRecord,
+    hotelFacilityRecord,
     noticeRecord,
     powerRecord,
   ],
@@ -761,9 +776,10 @@ test('keeps every bottom panel reachable without clipping record text', async ({
       document.querySelector<HTMLElement>('.dashboard-content')?.scrollHeight ?? 0,
     contentClientHeight:
       document.querySelector<HTMLElement>('.dashboard-content')?.clientHeight ?? 0,
+    usesScrollableWideLayout: matchMedia('(min-width: 87.51rem) and (max-height: 52rem)').matches,
   }))
   const viewport = page.viewportSize()
-  if ((viewport?.width ?? 0) >= 1400 && (viewport?.height ?? 0) > 768) {
+  if ((viewport?.width ?? 0) >= 1400 && !dimensions.usesScrollableWideLayout) {
     expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1)
     expect(dimensions.contentScrollHeight).toBeLessThanOrEqual(dimensions.contentClientHeight + 1)
   } else {
@@ -776,7 +792,7 @@ test('keeps every bottom panel reachable without clipping record text', async ({
         const grid = document.querySelector<HTMLElement>('.dashboard-grid')
         const health = document.querySelector<HTMLElement>('.health-panel')
         return {
-          mediaMatches: matchMedia('(min-width: 87.51rem) and (max-height: 62rem)').matches,
+          mediaMatches: matchMedia('(min-width: 87.51rem) and (max-height: 52rem)').matches,
           bodyOverflow: getComputedStyle(document.body).overflow,
           shell: shell && {
             display: getComputedStyle(shell).display,
@@ -813,6 +829,20 @@ test('keeps every bottom panel reachable without clipping record text', async ({
   if (finalBox) {
     expect(finalBox.y).toBeLessThan(page.viewportSize()?.height ?? 0)
     expect(finalBox.y + finalBox.height).toBeLessThanOrEqual((page.viewportSize()?.height ?? 0) + 1)
+  }
+
+  const facilityColumn = page.locator('.facilities-panel .split-panel > div').last()
+  const finalFacility = facilityColumn.locator('.record-list button').last()
+  if ((await finalFacility.count()) > 0) {
+    const facilityBounds = await facilityColumn.boundingBox()
+    const recordBounds = await finalFacility.boundingBox()
+    expect(facilityBounds).not.toBeNull()
+    expect(recordBounds).not.toBeNull()
+    if (facilityBounds && recordBounds) {
+      expect(recordBounds.y + recordBounds.height).toBeLessThanOrEqual(
+        facilityBounds.y + facilityBounds.height + 1,
+      )
+    }
   }
 
   const recordSummary = page

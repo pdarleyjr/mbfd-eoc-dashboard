@@ -33,6 +33,14 @@ export default defineConfig({
       use: {...devices['Desktop Chrome'], viewport: {width: 1536, height: 720}},
     },
     {
+      name: 'desktop-125pct',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: {width: 1486, height: 776},
+        deviceScaleFactor: 1.25,
+      },
+    },
+    {
       name: 'laptop-1366',
       use: {...devices['Desktop Chrome'], viewport: {width: 1366, height: 768}},
     },
