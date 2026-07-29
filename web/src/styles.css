@@ -1848,8 +1848,8 @@ input:focus-visible,
     min-height: 0;
     grid-template:
       'map weather traffic' minmax(0, 1.2fr)
-      'map pulse notices' minmax(0, 0.78fr)
-      'facilities utility health' minmax(0, 1.12fr)
+      'map pulse notices' minmax(0, 0.75fr)
+      'facilities utility health' minmax(0, 1.15fr)
       / minmax(32rem, 1.52fr) minmax(18rem, 0.78fr) minmax(19rem, 0.82fr);
   }
 
