@@ -29,6 +29,13 @@ const baseSummary: DashboardSummary = {
   ],
   records: [],
   source_health: [],
+  health_summary: {
+    critical_healthy: 6,
+    critical_total: 6,
+    all_healthy: 0,
+    all_total: 0,
+    unavailable_critical: [],
+  },
 }
 
 let queryResult: {
@@ -134,7 +141,45 @@ const richSummary: DashboardSummary = {
       temperature: 88,
       temperatureUnit: 'F',
     }),
+    {
+      ...record('observation', 'weather_observation', {
+        station_id: 'KMIA',
+        station_name: 'Miami International Airport',
+        temperature: {value: 30, unitCode: 'wmoUnit:degC'},
+        relativeHumidity: {value: 72, unitCode: 'wmoUnit:percent'},
+        windSpeed: {value: 20, unitCode: 'wmoUnit:km_h-1'},
+        windGust: {value: 30, unitCode: 'wmoUnit:km_h-1'},
+        visibility: {value: 16093.4, unitCode: 'wmoUnit:m'},
+        barometricPressure: {value: 101320, unitCode: 'wmoUnit:Pa'},
+        precipitationLastHour: {value: 2.54, unitCode: 'wmoUnit:mm'},
+      }),
+      observed_at: '2026-07-27T13:59:00Z',
+    },
     record('water', 'coastal_observation', {product: 'water_level', v: 1.2}),
+    {
+      ...record('water-previous', 'coastal_observation', {product: 'water_level', v: 1.1}),
+      observed_at: '2026-07-27T13:52:00Z',
+    },
+    record('predicted-water', 'coastal_observation', {
+      product: 'predicted_water_level',
+      v: 0.9,
+    }),
+    {
+      ...record('high-tide', 'coastal_observation', {
+        product: 'tide_predictions',
+        tide_type: 'H',
+        v: 1.35,
+      }),
+      observed_at: '2026-07-27T17:00:00Z',
+    },
+    {
+      ...record('low-tide', 'coastal_observation', {
+        product: 'tide_predictions',
+        tide_type: 'L',
+        v: 0.1,
+      }),
+      observed_at: '2026-07-27T20:00:00Z',
+    },
     record('wind', 'coastal_observation', {product: 'wind', s: 12}),
     record('alert', 'weather_alert'),
     {
@@ -229,7 +274,10 @@ describe('Dashboard', () => {
       name: /FPL Regional Grid Demand/i,
     })
     expect(within(powerTile).getByText('Not available')).toBeVisible()
-    expect(screen.getByText('PulsePoint advisory feed — not official CAD')).toBeVisible()
+    expect(screen.getByRole('heading', {name: 'Active Calls'})).toBeVisible()
+    expect(
+      screen.queryByText('PulsePoint advisory feed — not official CAD'),
+    ).not.toBeInTheDocument()
   })
 
   it('renders operational PulsePoint, road, notice, and regional-grid content', () => {
@@ -254,6 +302,15 @@ describe('Dashboard', () => {
     expect(
       screen.getByText('Regional grid indicator; not a Miami Beach customer-outage count'),
     ).toBeVisible()
+    expect(
+      screen.getByText(
+        'Regional grid demand is shown here. Local customer outages are available through FPL Power Tracker.',
+      ),
+    ).toBeVisible()
+    expect(screen.getByRole('link', {name: 'Open FPL Power Tracker'})).toHaveAttribute(
+      'href',
+      'https://www.fpl.com/powertracker',
+    )
 
     fireEvent.click(pulseCall)
     expect(useDashboardStore.getState().selectedRecordId).toBe('call')
@@ -263,6 +320,60 @@ describe('Dashboard', () => {
     expect(within(drawer).getByText('Available on Radio')).toBeVisible()
     expect(within(drawer).getByText('Transport Arrived')).toBeVisible()
     expect(within(drawer).getByText('PulsePoint advisory feed — not official CAD')).toBeVisible()
+  })
+
+  it('separates observations, forecasts, and tide decisions and opens Radar mode', () => {
+    queryResult = {...queryResult, data: richSummary}
+    renderDashboard()
+
+    expect(screen.getByText('Observed now')).toBeVisible()
+    expect(screen.getByText('86°F')).toBeVisible()
+    expect(screen.getByText(/Humidity 72%/)).toBeVisible()
+    expect(screen.getByText('Next-hour forecast')).toBeVisible()
+    expect(screen.getByText('Scattered storms')).toBeVisible()
+    expect(screen.getByText(/Wind 12 mph · Gust 19 mph/)).toBeVisible()
+    expect(screen.getByText(/Visibility 10 mi/)).toBeVisible()
+    expect(screen.getByText(/Pressure 29.92 inHg/)).toBeVisible()
+    expect(screen.getByText(/Rain 0.10 in/)).toBeVisible()
+    expect(screen.getByText(/Observed 1.20 m/)).toBeVisible()
+    expect(screen.getByText(/Predicted 0.90 m/)).toBeVisible()
+    expect(screen.getByText(/Anomaly \+0.30 m/)).toBeVisible()
+    expect(screen.getByText(/Rising/)).toBeVisible()
+    expect(screen.getByText(/Next high/)).toBeVisible()
+    expect(screen.getByText(/Next low/)).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', {name: 'View Radar'}))
+    expect(useDashboardStore.getState().mapMode).toBe('radar')
+  })
+
+  it('shows Immediate Attention only for action-relevant conditions', () => {
+    const clear = renderDashboard()
+    expect(screen.queryByRole('region', {name: 'Immediate Attention'})).not.toBeInTheDocument()
+    clear.unmount()
+
+    queryResult = {
+      ...queryResult,
+      data: {
+        ...richSummary,
+        metadata: {...richSummary.metadata, stale: false},
+        records: [
+          ...richSummary.records.filter((item) => item.id !== 'alert'),
+          {
+            ...record('flash-flood', 'weather_alert', {
+              event: 'Flash Flood Warning',
+              severity: 'Severe',
+              urgency: 'Immediate',
+              certainty: 'Observed',
+            }),
+            title: 'Flash Flood Warning for coastal Miami-Dade',
+          },
+        ],
+      },
+    }
+    renderDashboard()
+
+    const attention = screen.getByRole('region', {name: 'Immediate Attention'})
+    expect(within(attention).getByText(/Flash Flood Warning for coastal Miami-Dade/)).toBeVisible()
   })
 
   it('renders honest fallback values for partial operational records', () => {
@@ -335,9 +446,12 @@ describe('Dashboard', () => {
     expect(within(call).getByText('Address unavailable')).toBeVisible()
     expect(within(call).getByText('R1')).toBeVisible()
     expect(within(call).getByText('Status not reported')).toBeVisible()
-    expect(screen.getByRole('button', {name: /Causeway status report/i})).toHaveTextContent(
-      'Status reported by source',
-    )
+    const trafficPanel = document.querySelector<HTMLElement>('.traffic-panel')
+    expect(trafficPanel).not.toBeNull()
+    if (!trafficPanel) throw new Error('Traffic panel is missing')
+    expect(
+      within(trafficPanel).getByRole('button', {name: /Causeway status report/i}),
+    ).toHaveTextContent('Status reported by source')
     expect(screen.getByText('Official update without a supplied summary')).toBeVisible()
     expect(screen.getByText('Value unavailable')).toBeVisible()
 

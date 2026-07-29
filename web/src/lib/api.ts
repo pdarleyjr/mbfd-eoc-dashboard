@@ -1,6 +1,11 @@
-import {dashboardSummarySchema, type DashboardSummary} from '../types'
+import {
+  dashboardSummarySchema,
+  recordsResponseSchema,
+  type DashboardSummary,
+  type RecordsResponse,
+} from '../types'
 
-const SNAPSHOT_KEY = 'mbfd-eoc:last-rendered-dashboard:v1'
+const SNAPSHOT_KEY = 'mbfd-eoc:last-rendered-dashboard:v2'
 
 export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardSummary> {
   try {
@@ -38,4 +43,14 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardSum
     }
     throw error
   }
+}
+
+export async function fetchRadarStatus(signal?: AbortSignal): Promise<RecordsResponse> {
+  const response = await fetch('/api/v1/radar/status', {
+    headers: {Accept: 'application/json'},
+    signal,
+    credentials: 'same-origin',
+  })
+  if (!response.ok) throw new Error(`Radar status API returned ${response.status}`)
+  return recordsResponseSchema.parse(await response.json())
 }

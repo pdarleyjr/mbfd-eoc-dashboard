@@ -4,8 +4,9 @@ from .adapters.coops import CoopsAdapter
 from .adapters.eia import EiaRegionDataAdapter
 from .adapters.gtfs import MiamiDadeGtfsAdapter
 from .adapters.nhc import NhcCurrentStormsAdapter
-from .adapters.nws import NwsAlertsAdapter, NwsForecastAdapter
+from .adapters.nws import NwsAlertsAdapter, NwsForecastAdapter, NwsObservationAdapter
 from .adapters.pulsepoint import PulsePointAdapter
+from .adapters.radar import NoaaRadarStatusAdapter
 from .adapters.web import OfficialWebAdapter, OfficialWebSource
 
 
@@ -200,6 +201,57 @@ def _preliminary_firm_sources() -> list[Adapter]:
 
 def _arcgis_sources() -> list[Adapter]:
     return [
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="wpc-day-1-excessive-rainfall",
+                source_name="NWS Weather Prediction Center Day 1 Excessive Rainfall Outlook",
+                url=(
+                    "https://mapservices.weather.noaa.gov/vector/rest/services/"
+                    "hazards/wpc_precip_hazards/MapServer/0"
+                ),
+                category="excessive_rainfall_outlook",
+                title_field="outlook",
+                id_field="objectid",
+                observed_field="issue_time",
+                expires_field="end_time",
+                poll_interval_seconds=900,
+                stale_threshold_seconds=3600,
+                include_fields=(
+                    "product",
+                    "valid_time",
+                    "start_time",
+                    "dn",
+                ),
+                geometry_precision=4,
+                max_allowable_offset=0.01,
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
+                source_id="spc-day-1-convective-outlook",
+                source_name="NWS Storm Prediction Center Day 1 Convective Outlook",
+                url=(
+                    "https://mapservices.weather.noaa.gov/vector/rest/services/"
+                    "outlooks/SPC_wx_outlks/MapServer/1"
+                ),
+                category="severe_weather_outlook",
+                title_field="label2",
+                id_field="objectid",
+                observed_field="issue",
+                expires_field="expire",
+                poll_interval_seconds=900,
+                stale_threshold_seconds=3600,
+                include_fields=(
+                    "dn",
+                    "valid",
+                    "label",
+                    "stroke",
+                    "fill",
+                ),
+                geometry_precision=4,
+                max_allowable_offset=0.01,
+            )
+        ),
         ArcGisAdapter(
             ArcGisSource(
                 source_id="miami-beach-lane-closures",
@@ -486,11 +538,14 @@ def source_registry() -> list[Adapter]:
         NwsAlertsAdapter(),
         NwsForecastAdapter(),
         NwsForecastAdapter(hourly=True),
+        NwsObservationAdapter(),
+        NoaaRadarStatusAdapter(),
         *[
             CoopsAdapter(product)
             for product in (
                 "water_level",
-                "predictions",
+                "predicted_water_level",
+                "tide_predictions",
                 "air_temperature",
                 "water_temperature",
                 "wind",

@@ -98,6 +98,7 @@ class FakeRepository:
         (api.incidents, "incidents"),
         (api.weather, "weather"),
         (api.coastal, "coastal"),
+        (api.radar_status, "radar"),
         (api.tropical, "tropical"),
         (api.traffic, "traffic"),
         (api.utilities, "utilities"),
@@ -146,12 +147,15 @@ async def test_dashboard_summary_counts_only_supported_metrics(
 
     summary = await api.dashboard_summary(object())
 
-    assert [item.value for item in summary.kpis] == [1, 1, 1, 1, "23,418 MWh", 1]
+    assert [item.value for item in summary.kpis] == [1, 1, 1, 1, "23,418 MWh", "0/6"]
     assert all(not item.unavailable for item in summary.kpis)
     power = next(item for item in summary.kpis if item.id == "power")
     assert power.label == "FPL Regional Grid Demand"
     assert power.detail_category == "power_grid_status"
     assert "not local outage" in power.source
+    source_health = next(item for item in summary.kpis if item.id == "sources")
+    assert source_health.label == "Critical Feeds"
+    assert source_health.source == "1/1 all configured sources healthy"
 
 
 async def test_dashboard_summary_marks_power_unavailable(
@@ -214,3 +218,33 @@ def test_metadata_prioritizes_stale_and_delayed_states() -> None:
     assert stale.stale is True
     assert stale.data_age_seconds is not None
     assert delayed.source_health is SourceHealthState.DELAYED
+
+
+def test_critical_feed_summary_counts_feed_groups_not_every_source_equally() -> None:
+    health = [
+        make_health().model_copy(
+            update={"source_id": "pulsepoint-x1012", "source_name": "PulsePoint"}
+        ),
+        make_health().model_copy(update={"source_id": "nws-alerts", "source_name": "NWS alerts"}),
+        make_health().model_copy(
+            update={"source_id": "noaa-mrms-radar-status", "source_name": "NOAA MRMS"}
+        ),
+        make_health().model_copy(update={"source_id": "nhc-current-storms", "source_name": "NHC"}),
+        make_health(SourceHealthState.UNAVAILABLE).model_copy(
+            update={"source_id": "miami-beach-lane-closures", "source_name": "Roads"}
+        ),
+        make_health().model_copy(
+            update={"source_id": "coops-water-level", "source_name": "CO-OPS"}
+        ),
+        make_health(SourceHealthState.UNAVAILABLE).model_copy(
+            update={"source_id": "hotel-inventory", "source_name": "Hotel inventory"}
+        ),
+    ]
+
+    summary = api._source_health_summary(health)
+
+    assert summary.critical_healthy == 5
+    assert summary.critical_total == 6
+    assert summary.all_healthy == 5
+    assert summary.all_total == 7
+    assert summary.unavailable_critical == ["Roads"]

@@ -9,9 +9,12 @@ not become an all-clear state.
 | --- | --- | --- | --- |
 | Existing normalized PulsePoint X1012 proxy | Advisory | 15 s active, 45 s idle / 90 s | Miami Beach records supplied by the established proxy; call/address/unit fields preserved; never CAD |
 | NWS alerts API | Authoritative | 45 s / 120 s | Miami Beach point; alert feature geometry and official timestamps |
-| NWS point, forecast, hourly forecast | Authoritative | 5 min / 15 min | Point 25.7907,-80.1300; official period fields |
+| NWS point, forecast, hourly forecast, latest observation | Authoritative | 5 min / 15 min | Point 25.7907,-80.1300; official period fields plus station, observation time, temperature, humidity, wind/gust, visibility, pressure, and hourly precipitation |
+| NOAA nowCOAST MRMS WMS capabilities | Authoritative | 5 min / 15 min | Exact service-reported CONUS base-reflectivity frames and source status; imagery loads directly in the browser |
 | NOAA CO-OPS station 8723214 | Authoritative | 330 s observations, 6 h predictions / 15 min or 12 h | Water level, tide predictions, wind, air/water temperature, pressure; observed/predicted explicit |
-| NHC `CurrentStorms.json` | Authoritative | 5 min / 15 min | Current products only; empty list produces no tropical product |
+| NHC `CurrentStorms.json` and advertised GIS KMZ products | Authoritative | 5 min / 15 min | Active center, forecast track, cone, coastal watches/warnings, current wind radii, and forecast wind radii; empty list produces no tropical product |
+| WPC Day 1 Excessive Rainfall Outlook | Authoritative | 15 min / 1 h | Current intersecting Day 1 outlook geometry |
+| SPC Day 1 Convective Outlook | Authoritative | 15 min / 1 h | Current intersecting Day 1 categorical geometry |
 | FDEM Road Closures layers 0,1,4,5,6,7 | Authoritative | 60 s / 3 min | FHP/FL511 closures, crashes, congestion, construction, other; local geometry/corridor filter |
 | EIA-930 FPL demand (`D`) | Authoritative regional grid data | 15 min / 2 h | Latest local-hourly Florida Power & Light balancing-authority demand; not a municipal or customer-outage feed |
 | EIA-930 FPL day-ahead demand forecast (`DF`) | Authoritative regional grid data | 15 min / 2 h | Latest local-hourly FPL balancing-authority forecast; not a municipal or customer-outage feed |
@@ -31,8 +34,10 @@ not become an all-clear state.
 Publisher roots:
 
 - `https://api.weather.gov`
+- `https://nowcoast.noaa.gov`
 - `https://api.tidesandcurrents.noaa.gov`
 - `https://www.nhc.noaa.gov`
+- `https://mapservices.weather.noaa.gov`
 - `https://api.eia.gov/v2/electricity/rto/region-data/data/`
 - `https://www.eia.gov/electricity/gridmonitor/`
 - `https://services.arcgis.com/3wFbqsFPLeKqOlIK`

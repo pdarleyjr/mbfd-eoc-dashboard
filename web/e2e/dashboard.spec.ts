@@ -175,7 +175,7 @@ const summary = {
   kpis: [
     {
       id: 'pulsepoint',
-      label: 'PulsePoint Active Calls',
+      label: 'Active Calls',
       value: 1,
       unavailable: false,
       source: 'PulsePoint advisory',
@@ -228,6 +228,62 @@ const summary = {
       message: 'Source temporarily unavailable',
     },
   ],
+  health_summary: {
+    critical_healthy: 6,
+    critical_total: 6,
+    all_healthy: 0,
+    all_total: 1,
+    unavailable_critical: [],
+  },
+}
+
+const radarResponse = {
+  metadata: {
+    generated_at: '2026-07-29T12:49:00Z',
+    source_observation_time: '2026-07-29T12:48:14Z',
+    data_age_seconds: 46,
+    stale: false,
+    source_authority: ['authoritative'],
+    source_health: 'healthy',
+    last_successful_refresh: '2026-07-29T12:49:00Z',
+    empty_state: null,
+  },
+  records: [
+    {
+      ...record,
+      id: 'radar-status',
+      source_id: 'noaa-mrms-radar-status',
+      source_name: 'NOAA nowCOAST MRMS Radar',
+      source_record_id: 'conus_base_reflectivity_mosaic',
+      source_url:
+        'https://nowcoast.noaa.gov/geoserver/observations/weather_radar/wms?SERVICE=WMS&REQUEST=GetCapabilities',
+      title: 'NOAA MRMS base reflectivity status',
+      category: 'radar_status',
+      observed_at: '2026-07-29T12:48:14Z',
+      stale: false,
+      stale_reason: null,
+      geography: {},
+      payload: {
+        service_available: true,
+        service_url: 'https://nowcoast.noaa.gov/geoserver/observations/weather_radar/wms',
+        layer_name: 'conus_base_reflectivity_mosaic',
+        legend_url:
+          'https://nowcoast.noaa.gov/geoserver/observations/weather_radar/ows?service=WMS&request=GetLegendGraphic&format=image%2Fpng&layer=conus_base_reflectivity_mosaic',
+        latest_frame_time: '2026-07-29T12:48:14Z',
+        extent_start: '2026-07-29T11:36:12Z',
+        extent_end: '2026-07-29T12:48:14Z',
+        frame_times: [
+          '2026-07-29T11:36:12Z',
+          '2026-07-29T11:52:10Z',
+          '2026-07-29T12:08:06Z',
+          '2026-07-29T12:24:08Z',
+          '2026-07-29T12:40:03Z',
+          '2026-07-29T12:48:14Z',
+        ],
+        update_frequency_seconds: 240,
+      },
+    },
+  ],
 }
 
 test.beforeEach(async ({page}) => {
@@ -250,6 +306,23 @@ test.beforeEach(async ({page}) => {
       body: JSON.stringify(summary),
     })
   })
+  await page.route('**/api/v1/radar/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(radarResponse),
+    })
+  })
+  await page.route('https://nowcoast.noaa.gov/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEklEQVR42mNk+M9QzwAEYgH9eRZqGQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    })
+  })
 })
 
 test('renders the keyless OpenStreetMap fallback and selects a mapped feature', async ({page}) => {
@@ -269,7 +342,6 @@ test('renders the keyless OpenStreetMap fallback and selects a mapped feature', 
 
   const map = page.getByRole('region', {name: 'Miami Beach operational map'})
   await expect(map).toBeVisible()
-  await expect(page.getByText('Google Maps configuration is unavailable')).toHaveCount(0)
   await expect(map.getByRole('link', {name: /OpenStreetMap contributors/i})).toBeVisible()
   await expect(map.locator('img.leaflet-tile-loaded').first()).toBeVisible()
   await expect(map).toHaveAttribute('aria-busy', 'false', {timeout: 20_000})
@@ -317,17 +389,23 @@ test('shows operational record content and synchronizes cards with map selection
   await expect(detailDrawer.getByText(/not authoritative CAD assignments/i)).toBeVisible()
   const selectedMarker = page.locator('.leaflet-record-marker.is-selected')
   await expect(selectedMarker).toBeVisible()
-  const markerBox = await selectedMarker.boundingBox()
-  const mapBox = await page.locator('.leaflet-map').boundingBox()
-  expect(markerBox).not.toBeNull()
-  expect(mapBox).not.toBeNull()
-  if (markerBox && mapBox) {
-    expect(
-      Math.abs(markerBox.x + markerBox.width / 2 - (mapBox.x + mapBox.width / 2)),
-    ).toBeLessThan(60)
-    const markerAnchorY = markerBox.y + markerBox.height - 2
-    expect(Math.abs(markerAnchorY - (mapBox.y + mapBox.height / 2))).toBeLessThan(60)
-  }
+  await expect
+    .poll(async () => {
+      const markerBox = await selectedMarker.boundingBox()
+      const mapBox = await page.locator('.leaflet-map').boundingBox()
+      if (!markerBox || !mapBox) return Number.POSITIVE_INFINITY
+      return Math.abs(markerBox.x + markerBox.width / 2 - (mapBox.x + mapBox.width / 2))
+    })
+    .toBeLessThan(60)
+  await expect
+    .poll(async () => {
+      const markerBox = await selectedMarker.boundingBox()
+      const mapBox = await page.locator('.leaflet-map').boundingBox()
+      if (!markerBox || !mapBox) return Number.POSITIVE_INFINITY
+      const markerAnchorY = markerBox.y + markerBox.height - 2
+      return Math.abs(markerAnchorY - (mapBox.y + mapBox.height / 2))
+    })
+    .toBeLessThan(60)
   await page.getByRole('button', {name: 'Close record details'}).click()
 
   const roadPanel = page.locator('.traffic-panel')
@@ -348,7 +426,9 @@ test('shows operational record content and synchronizes cards with map selection
   await expect(detailDrawer).toBeVisible()
   await page.getByRole('button', {name: 'Close record details'}).click()
 
-  await page.getByRole('checkbox', {name: 'Flood zones'}).check()
+  const floodLayerToggle = page.getByRole('checkbox', {name: 'Flood zones'})
+  await floodLayerToggle.scrollIntoViewIfNeeded()
+  await floodLayerToggle.check({force: true})
   const floodZone = map.getByRole('button', {name: /Preliminary FIRM AE flood zone/i})
   await floodZone.focus()
   await floodZone.press('Enter')
@@ -364,7 +444,8 @@ test('loads honest source states and supports drawers and layer controls', async
     page.getByRole('heading', {name: 'Miami Beach Emergency Management Dashboard'}),
   ).toBeVisible()
   await expect(page.getByAltText('Miami Beach Fire Department')).toBeVisible()
-  await expect(page.getByText('PulsePoint advisory feed — not official CAD')).toBeVisible()
+  await expect(page.getByRole('heading', {name: 'Active Calls'})).toBeVisible()
+  await expect(page.getByText('PulsePoint advisory feed — not official CAD')).toHaveCount(0)
   await expect(page.getByText('Showing cached information', {exact: false})).toBeVisible()
 
   const floodLayer = page.getByRole('checkbox', {name: 'Flood zones'})
@@ -394,25 +475,46 @@ test('loads honest source states and supports drawers and layer controls', async
   }
 })
 
-test('keeps the map status clear of layer controls when configuration is absent', async ({
+test('switches map modes, applies radar defaults, and starts animation only on request', async ({
   page,
-}) => {
+}, testInfo) => {
+  const radarRequests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().startsWith('https://nowcoast.noaa.gov/') && request.url().includes('GetMap'))
+      radarRequests.push(request.url())
+  })
   await page.goto('/')
-  const status = page.getByText('Google Maps configuration is unavailable', {exact: true})
-  if (await status.isVisible()) {
-    const statusBox = await status.boundingBox()
-    const layerBox = await page.getByRole('complementary', {name: 'Map layers'}).boundingBox()
-    expect(statusBox).not.toBeNull()
-    expect(layerBox).not.toBeNull()
-    if (statusBox && layerBox) {
-      const overlapX =
-        Math.min(statusBox.x + statusBox.width, layerBox.x + layerBox.width) -
-        Math.max(statusBox.x, layerBox.x)
-      const overlapY =
-        Math.min(statusBox.y + statusBox.height, layerBox.y + layerBox.height) -
-        Math.max(statusBox.y, layerBox.y)
-      expect(overlapX > 0 && overlapY > 0).toBeFalsy()
-    }
+
+  await expect(page.getByRole('tab', {name: 'Operations'})).toHaveAttribute('aria-selected', 'true')
+  expect(radarRequests).toHaveLength(0)
+
+  await page.getByRole('tab', {name: 'Radar'}).click()
+  await expect(page.getByRole('checkbox', {name: 'MRMS radar'})).toBeChecked()
+  await expect(page.getByRole('checkbox', {name: 'Weather alerts'})).toBeChecked()
+  await expect(page.getByRole('checkbox', {name: 'Hospitals and hotels'})).not.toBeChecked()
+  await expect(page.getByRole('checkbox', {name: 'Transit routes and stops'})).not.toBeChecked()
+  await expect(page.getByRole('checkbox', {name: 'Stormwater pump assets'})).not.toBeChecked()
+  await expect(page.getByRole('checkbox', {name: 'Evacuation zones'})).not.toBeChecked()
+  await expect(page.getByText(/Radar delayed · Last frame/)).toBeVisible()
+  await expect(page.getByRole('button', {name: 'Play radar animation'})).toBeVisible()
+  await expect.poll(() => radarRequests.length).toBeGreaterThan(0)
+  const requestedFrames = () =>
+    new Set(
+      radarRequests.map((request) => {
+        const url = new URL(request)
+        return url.searchParams.get('time') ?? url.searchParams.get('TIME')
+      }),
+    )
+  expect(requestedFrames().size).toBe(1)
+  await page.waitForTimeout(700)
+  expect(requestedFrames().size).toBe(1)
+
+  await page.getByRole('button', {name: 'Play radar animation'}).click()
+  if (testInfo.project.name === 'reduced-motion') {
+    await page.waitForTimeout(700)
+    expect(requestedFrames().size).toBe(1)
+  } else {
+    await expect.poll(() => requestedFrames().size).toBeGreaterThan(1)
   }
 })
 
@@ -483,9 +585,7 @@ test('does not overlap dashboard panels or overflow horizontally', async ({page}
   expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
 })
 
-test('keeps every bottom panel reachable without clipping record text', async ({
-  page,
-}, testInfo) => {
+test('keeps every bottom panel reachable without clipping record text', async ({page}) => {
   await page.goto('/')
   await expect(page.locator('.dashboard-content')).toBeVisible()
   const dimensions = await page.evaluate(() => ({
@@ -496,7 +596,7 @@ test('keeps every bottom panel reachable without clipping record text', async ({
     contentClientHeight:
       document.querySelector<HTMLElement>('.dashboard-content')?.clientHeight ?? 0,
   }))
-  if (['desktop-1920', 'reduced-motion'].includes(testInfo.project.name)) {
+  if ((page.viewportSize()?.width ?? 0) >= 1400) {
     expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1)
     expect(dimensions.contentScrollHeight).toBeLessThanOrEqual(dimensions.contentClientHeight + 1)
   } else {

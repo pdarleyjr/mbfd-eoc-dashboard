@@ -6,7 +6,7 @@ from app.registry import source_registry
 def test_registry_has_no_duplicate_source_ids() -> None:
     sources = source_registry()
     ids = [source.source_id for source in sources]
-    assert len(sources) == 43
+    assert len(sources) == 48
     assert len(ids) == len(set(ids))
     assert {
         "eia-fpl-demand",
@@ -15,6 +15,14 @@ def test_registry_has_no_duplicate_source_ids() -> None:
     } <= set(ids)
     assert "fdem-power-outage-miami-dade" not in ids
     assert "fpl-power-tracker" not in ids
+    assert {
+        "noaa-mrms-radar-status",
+        "nws-observation",
+        "wpc-day-1-excessive-rainfall",
+        "spc-day-1-convective-outlook",
+        "coops-predicted-water-level",
+        "coops-tide-predictions",
+    } <= set(ids)
 
 
 def test_city_preliminary_firm_layers_are_spatially_bounded_and_labeled() -> None:
@@ -45,9 +53,13 @@ def test_registry_covers_required_operational_categories() -> None:
     assert {
         "pulsepoint_call",
         "weather_alert",
+        "weather_observation",
         "forecast",
         "coastal_observation",
         "tropical",
+        "radar_status",
+        "excessive_rainfall_outlook",
+        "severe_weather_outlook",
         "traffic_incident",
         "lane_closure",
         "power_grid_status",

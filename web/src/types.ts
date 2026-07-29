@@ -82,9 +82,22 @@ export const dashboardSummarySchema = z.object({
   ),
   records: z.array(canonicalRecordSchema),
   source_health: z.array(sourceHealthSchema),
+  health_summary: z.object({
+    critical_healthy: z.number().int().nonnegative(),
+    critical_total: z.number().int().nonnegative(),
+    all_healthy: z.number().int().nonnegative(),
+    all_total: z.number().int().nonnegative(),
+    unavailable_critical: z.array(z.string()),
+  }),
+})
+
+export const recordsResponseSchema = z.object({
+  metadata: responseMetadataSchema,
+  records: z.array(canonicalRecordSchema),
 })
 
 export type CanonicalRecord = z.infer<typeof canonicalRecordSchema>
 export type SourceHealth = z.infer<typeof sourceHealthSchema>
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>
+export type RecordsResponse = z.infer<typeof recordsResponseSchema>
 export type SourceHealthState = z.infer<typeof sourceHealthStateSchema>

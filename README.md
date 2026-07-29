@@ -11,7 +11,7 @@ operational systems.
 ## Architecture
 
 - React 19, strict TypeScript, Fluent UI, TanStack Query, Zustand, Zod,
-  Leaflet/OpenStreetMap with optional Google Maps.
+  Leaflet/OpenStreetMap, and direct NOAA nowCOAST MRMS radar WMS.
 - FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PostgreSQL 16/PostGIS, Redis.
 - APScheduler worker with Redis locks, bounded retries, circuit breakers, sanitized
   immutable snapshots, and visible last-known-good behavior.
@@ -39,9 +39,7 @@ py -3 -m pytest
 Copy `.env.example` to `.env` only on an authorized development or production
 host. Generate fresh PostgreSQL and Redis passwords. `EOC_EIA_API_KEY` is a
 server-side secret and must never be placed in a `VITE_*` value. The keyless
-OpenStreetMap tile URL and optional Google browser map values are compiled into
-the SPA; Google values must be HTTP-referrer restricted and are not server
-secrets.
+OpenStreetMap tile URL and radar kiosk reset interval are compiled into the SPA.
 
 ## Honest-display contract
 

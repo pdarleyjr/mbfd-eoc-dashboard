@@ -110,11 +110,20 @@ class DashboardKpi(BaseModel):
     detail_category: str
 
 
+class SourceHealthSummary(BaseModel):
+    critical_healthy: int
+    critical_total: int
+    all_healthy: int
+    all_total: int
+    unavailable_critical: list[str] = Field(default_factory=list)
+
+
 class DashboardSummary(BaseModel):
     metadata: ResponseMetadata
     kpis: list[DashboardKpi]
     records: list[CanonicalRecord]
     source_health: list[SourceHealth]
+    health_summary: SourceHealthSummary
 
 
 class VersionResponse(BaseModel):

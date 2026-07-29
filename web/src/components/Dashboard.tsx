@@ -330,70 +330,241 @@ function PowerGridStatus({records}: {records: CanonicalRecord[]}) {
       ? `${new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format(value)} ${unit}`
       : 'Value unavailable'
   return (
-    <button type="button" className="power-grid-card" onClick={() => selectRecord(demand.id)}>
-      <span>
-        <strong>{demand.title}</strong>
-        <b>{renderedValue}</b>
-      </span>
-      <small>{payloadText(demand, 'geographic_scope')}</small>
-      <p>{payloadText(demand, 'scope_note')}</p>
-      <span className="operational-meta">EIA-930 · {recordTime(demand)} · View details</span>
-    </button>
+    <div className="power-grid-section">
+      <button type="button" className="power-grid-card" onClick={() => selectRecord(demand.id)}>
+        <span>
+          <strong>{demand.title}</strong>
+          <b>{renderedValue}</b>
+        </span>
+        <small>{payloadText(demand, 'geographic_scope')}</small>
+        <p>{payloadText(demand, 'scope_note')}</p>
+        <span className="operational-meta">EIA-930 · {recordTime(demand)} · View details</span>
+      </button>
+      <p>
+        Regional grid demand is shown here. Local customer outages are available through FPL Power
+        Tracker.
+      </p>
+      <a href="https://www.fpl.com/powertracker" target="_blank" rel="noreferrer">
+        Open FPL Power Tracker
+      </a>
+    </div>
   )
 }
 
+function measurement(record: CanonicalRecord | undefined, key: string): number | null {
+  const raw = record?.payload[key]
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const value = (raw as Record<string, unknown>).value
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return null
+}
+
+function fixed(value: number | null, digits = 0): string {
+  return value === null ? 'Not available' : value.toFixed(digits)
+}
+
+function observedTime(record: CanonicalRecord): number {
+  return Date.parse(record.observed_at ?? record.published_at ?? record.retrieved_at)
+}
+
 function WeatherCoastal({records}: {records: CanonicalRecord[]}) {
-  const forecast = records.find(
-    (record) => record.category === 'forecast' && record.payload.forecast_kind === 'hourly',
-  )
+  const setMapMode = useDashboardStore((state) => state.setMapMode)
+  const [renderedAt] = useState(() => Date.now())
+  const forecasts = records
+    .filter((record) => record.category === 'forecast' && record.payload.forecast_kind === 'hourly')
+    .sort((first, second) => observedTime(first) - observedTime(second))
+  const forecast = forecasts.find((record) => observedTime(record) >= renderedAt) ?? forecasts[0]
+  const observation = records
+    .filter((record) => record.category === 'weather_observation')
+    .sort((first, second) => observedTime(second) - observedTime(first))[0]
   const alert = records.find((record) => record.category === 'weather_alert')
-  const water = records.find(
-    (record) =>
-      record.category === 'coastal_observation' && record.payload.product === 'water_level',
-  )
-  const wind = records.find(
-    (record) => record.category === 'coastal_observation' && record.payload.product === 'wind',
-  )
+  const waterLevels = records
+    .filter(
+      (record) =>
+        record.category === 'coastal_observation' && record.payload.product === 'water_level',
+    )
+    .sort((first, second) => observedTime(second) - observedTime(first))
+  const observedWater = waterLevels[0]
+  const previousWater = waterLevels[1]
+  const predictedWater = records
+    .filter(
+      (record) =>
+        record.category === 'coastal_observation' &&
+        record.payload.product === 'predicted_water_level',
+    )
+    .sort(
+      (first, second) =>
+        Math.abs(observedTime(first) - (observedWater ? observedTime(observedWater) : renderedAt)) -
+        Math.abs(observedTime(second) - (observedWater ? observedTime(observedWater) : renderedAt)),
+    )[0]
+  const tideRecords = records
+    .filter(
+      (record) =>
+        record.category === 'coastal_observation' && record.payload.product === 'tide_predictions',
+    )
+    .sort((first, second) => observedTime(first) - observedTime(second))
+  const highTides = tideRecords.filter((record) => record.payload.tide_type === 'H')
+  const lowTides = tideRecords.filter((record) => record.payload.tide_type === 'L')
+  const nextHigh = highTides.find((record) => observedTime(record) >= renderedAt) ?? highTides[0]
+  const nextLow = lowTides.find((record) => observedTime(record) >= renderedAt) ?? lowTides[0]
+  const hoursUntilHigh = nextHigh ? (observedTime(nextHigh) - renderedAt) / 3_600_000 : null
+
+  const temperature = measurement(observation, 'temperature')
+  const humidity = measurement(observation, 'relativeHumidity')
+  const windSpeed = measurement(observation, 'windSpeed')
+  const windGust = measurement(observation, 'windGust')
+  const visibility = measurement(observation, 'visibility')
+  const pressure = measurement(observation, 'barometricPressure')
+  const precipitation = measurement(observation, 'precipitationLastHour')
+  const observedLevel = measurement(observedWater, 'v')
+  const priorLevel = measurement(previousWater, 'v')
+  const predictedLevel = measurement(predictedWater, 'v')
+  const anomaly =
+    observedLevel !== null && predictedLevel !== null ? observedLevel - predictedLevel : null
+  const trend =
+    observedLevel === null || priorLevel === null
+      ? 'Trend unavailable'
+      : observedLevel > priorLevel
+        ? 'Rising'
+        : observedLevel < priorLevel
+          ? 'Falling'
+          : 'Steady'
+
   return (
     <Panel
       title="Weather & Coastal Conditions"
       subtitle="NWS · NOAA CO-OPS"
       className="weather-panel"
     >
-      <div className="weather-primary">
-        <div>
-          <span>Current forecast</span>
+      <div className="weather-decision-grid">
+        <div className="weather-observed">
+          <span>Observed now</span>
+          <strong>
+            {temperature === null ? 'Not available' : `${fixed((temperature * 9) / 5 + 32)}°F`}
+          </strong>
+          <small>
+            {observation
+              ? `${payloadText(observation, 'station_name', 'station_id') ?? 'NWS station'} · ${recordTime(observation)}`
+              : 'Official observation unavailable'}
+          </small>
+          <p>Humidity {humidity === null ? '—' : `${fixed(humidity)}%`}</p>
+          <p>
+            Wind {windSpeed === null ? '—' : `${fixed(windSpeed * 0.621371)} mph`} · Gust{' '}
+            {windGust === null ? '—' : `${fixed(windGust * 0.621371)} mph`}
+            {measurement(observation, 'windDirection') === null
+              ? ''
+              : ` · ${fixed(measurement(observation, 'windDirection'))}°`}
+          </p>
+          <p>Visibility {visibility === null ? '—' : `${fixed(visibility / 1609.344)} mi`}</p>
+          <p>Pressure {pressure === null ? '—' : `${fixed(pressure / 3386.389, 2)} inHg`}</p>
+          <p>Rain {precipitation === null ? '—' : `${fixed(precipitation / 25.4, 2)} in`}</p>
+        </div>
+        <div className="weather-forecast">
+          <span>Next-hour forecast</span>
           <strong>{forecast ? valueText(forecast.payload.shortForecast) : 'Not available'}</strong>
           <small>
             {forecast
-              ? `${valueText(forecast.payload.temperature)}°${valueText(forecast.payload.temperatureUnit)}`
-              : 'Source status is shown below'}
+              ? `${valueText(forecast.payload.temperature)}°${valueText(forecast.payload.temperatureUnit)} · ${recordTime(forecast)}`
+              : 'Official forecast unavailable'}
           </small>
-        </div>
-        <div className={alert ? 'weather-alert active' : 'weather-alert'}>
-          <span>Active NWS alert</span>
-          <strong>{alert?.title ?? 'No current records returned by source'}</strong>
+          <Button size="small" appearance="primary" onClick={() => setMapMode('radar')}>
+            View Radar
+          </Button>
         </div>
       </div>
-      <div className="condition-strip">
+      <div className={alert ? 'weather-alert active' : 'weather-alert'}>
+        <span>Active NWS alert</span>
+        <strong>{alert?.title ?? 'No current records returned by source'}</strong>
+      </div>
+      <div className="tide-decision-strip">
         <div>
-          <span>Water level</span>
-          <strong>{water ? valueText(water.payload.v) : '—'}</strong>
-          <small>{water ? 'Observed · MLLW' : 'Not available'}</small>
+          <span>Water level · MLLW</span>
+          <strong>Observed {observedLevel === null ? '—' : `${fixed(observedLevel, 2)} m`}</strong>
+          <small>
+            Predicted {predictedLevel === null ? '—' : `${fixed(predictedLevel, 2)} m`} · Anomaly{' '}
+            {anomaly === null ? '—' : `${anomaly >= 0 ? '+' : ''}${fixed(anomaly, 2)} m`} · {trend}{' '}
+            · Station 8723214
+          </small>
         </div>
         <div>
-          <span>Wind</span>
-          <strong>{wind ? valueText(wind.payload.s) : '—'}</strong>
-          <small>{wind ? 'Observed' : 'Not available'}</small>
+          <span>Next high</span>
+          <strong>
+            {nextHigh ? `${fixed(measurement(nextHigh, 'v'), 2)} m` : 'Not available'}
+          </strong>
+          <small>
+            {nextHigh
+              ? `${localTime(nextHigh.observed_at)}${
+                  hoursUntilHigh !== null && hoursUntilHigh >= 0
+                    ? ` · in ${fixed(hoursUntilHigh, 1)} hr`
+                    : ''
+                }`
+              : 'CO-OPS prediction unavailable'}
+          </small>
         </div>
         <div>
-          <span>Station</span>
-          <strong>8723214</strong>
-          <small>Virginia Key</small>
+          <span>Next low</span>
+          <strong>{nextLow ? `${fixed(measurement(nextLow, 'v'), 2)} m` : 'Not available'}</strong>
+          <small>
+            {nextLow ? localTime(nextLow.observed_at) : 'CO-OPS prediction unavailable'}
+          </small>
         </div>
       </div>
     </Panel>
   )
+}
+
+function immediateAttention(
+  records: CanonicalRecord[],
+  unavailableCritical: string[],
+): CanonicalRecord[] {
+  const intersectsOperationalArea = (record: CanonicalRecord): boolean => {
+    const points: Array<[number, number]> = []
+    const collect = (value: unknown) => {
+      if (Array.isArray(value)) {
+        if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+          points.push([value[0], value[1]])
+          return
+        }
+        value.forEach(collect)
+        return
+      }
+      if (value && typeof value === 'object')
+        Object.values(value as Record<string, unknown>).forEach(collect)
+    }
+    collect(record.geography)
+    if (!points.length) return false
+    const longitudes = points.map(([longitude]) => longitude)
+    const latitudes = points.map(([, latitude]) => latitude)
+    return (
+      Math.min(...longitudes) <= -80.1 &&
+      Math.max(...longitudes) >= -80.2 &&
+      Math.min(...latitudes) <= 25.89 &&
+      Math.max(...latitudes) >= 25.74
+    )
+  }
+  const highImpact = records.filter((record) => {
+    const text = `${record.title} ${valueText(record.payload.event)} ${valueText(
+      record.payload.severity,
+    )}`.toLowerCase()
+    if (
+      record.category === 'weather_alert' &&
+      (text.includes('severe') ||
+        text.includes('extreme') ||
+        text.includes('tornado') ||
+        text.includes('flash flood'))
+    )
+      return true
+    if (
+      ['traffic_incident', 'lane_closure'].includes(record.category) &&
+      /causeway|macarthur|julia tuttle|venetian/.test(text)
+    )
+      return true
+    return record.category === 'tropical' && intersectsOperationalArea(record)
+  })
+  if (!unavailableCritical.length) return highImpact.slice(0, 3)
+  return highImpact.slice(0, 2)
 }
 
 function SourceDrawer({
@@ -684,6 +855,14 @@ export function Dashboard() {
     () => [...recordsByCategory('stormwater_pump_asset'), ...recordsByCategory('transit')],
     [recordsByCategory],
   )
+  const unavailableCritical = useMemo(
+    () => data?.health_summary.unavailable_critical ?? [],
+    [data?.health_summary.unavailable_critical],
+  )
+  const attentionRecords = useMemo(
+    () => immediateAttention(data?.records ?? [], unavailableCritical),
+    [data?.records, unavailableCritical],
+  )
 
   if (query.isLoading && !data)
     return (
@@ -777,6 +956,26 @@ export function Dashboard() {
           ))}
         </section>
 
+        {(attentionRecords.length > 0 || unavailableCritical.length > 0) && (
+          <section className="immediate-attention" aria-label="Immediate Attention">
+            <strong>Immediate Attention</strong>
+            <div>
+              {attentionRecords.map((record) => (
+                <button
+                  type="button"
+                  key={record.id}
+                  onClick={() => useDashboardStore.getState().selectRecord(record.id)}
+                >
+                  {record.title}
+                </button>
+              ))}
+              {unavailableCritical.map((source) => (
+                <span key={source}>{source} source is unavailable or delayed</span>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="dashboard-grid">
           <Suspense
             fallback={
@@ -788,8 +987,7 @@ export function Dashboard() {
             <OperationalMap records={data?.records ?? []} />
           </Suspense>
           <WeatherCoastal records={data?.records ?? []} />
-          <Panel title="PulsePoint Active Calls" subtitle="Advisory" className="pulsepoint-panel">
-            <p className="required-disclaimer">PulsePoint advisory feed — not official CAD</p>
+          <Panel title="Active Calls" subtitle="Advisory" className="pulsepoint-panel">
             <PulsePointList records={recordsByCategory('pulsepoint_call')} />
           </Panel>
           <Panel
@@ -843,17 +1041,43 @@ export function Dashboard() {
           <Panel
             title="Dashboard Data-Source Health"
             className="health-panel"
-            subtitle={data ? `${data.source_health.length} configured sources` : 'Not reported'}
+            subtitle={data ? `${data.health_summary.all_total} configured sources` : 'Not reported'}
           >
             <div className="health-summary">
-              {(['healthy', 'delayed', 'stale', 'unavailable'] as const).map((state) => (
-                <div key={state}>
-                  <strong>
-                    {data?.source_health.filter((source) => source.state === state).length ?? 0}
-                  </strong>
-                  <span>{state}</span>
-                </div>
-              ))}
+              <div>
+                <strong>
+                  {data
+                    ? `${data.health_summary.critical_healthy}/${data.health_summary.critical_total}`
+                    : '—'}
+                </strong>
+                <span>critical feeds</span>
+              </div>
+              <div>
+                <strong>
+                  {data
+                    ? `${data.health_summary.all_healthy}/${data.health_summary.all_total}`
+                    : '—'}
+                </strong>
+                <span>all sources</span>
+              </div>
+              <div>
+                <strong>
+                  {data?.source_health.filter((source) =>
+                    ['delayed', 'stale'].includes(source.state),
+                  ).length ?? 0}
+                </strong>
+                <span>delayed / stale</span>
+              </div>
+              <div>
+                <strong>
+                  {data?.source_health.filter((source) =>
+                    ['unavailable', 'invalid_response', 'scraper_layout_changed'].includes(
+                      source.state,
+                    ),
+                  ).length ?? 0}
+                </strong>
+                <span>unavailable</span>
+              </div>
               <Button appearance="subtle" onClick={() => setSourceOpen(true)}>
                 Review every source
               </Button>

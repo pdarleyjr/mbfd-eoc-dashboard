@@ -51,3 +51,9 @@ motion, and responsive laptop/tablet layouts are tested.
 
 The service worker caches only the application shell and last successful
 same-origin dashboard responses. It does not cache PHI or private operational data.
+
+The operational map uses one Leaflet renderer for points, lines, polygons,
+official hazard outlooks, active NHC products, and NOAA MRMS radar. The backend
+polls radar capabilities metadata; the browser requests only the selected WMS
+frame and, during playback, the next frame. Radar is static at the latest frame
+until an operator selects Play.

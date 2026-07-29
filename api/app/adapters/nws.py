@@ -1,3 +1,5 @@
+import json
+from datetime import timedelta
 from typing import Any
 
 import httpx
@@ -142,3 +144,125 @@ class NwsForecastAdapter(Adapter):
                 )
             )
         return records
+
+
+class NwsObservationAdapter(Adapter):
+    source_id = "nws-observation"
+    source_name = "National Weather Service Observation"
+    source_type = SourceType.OFFICIAL_API.value
+    authority_level = AuthorityLevel.AUTHORITATIVE.value
+    category = "weather_observation"
+    point_url = "https://api.weather.gov/points/25.7907,-80.1300"
+    url = point_url
+    poll_interval_seconds = 300
+    stale_threshold_seconds = 900
+    retire_missing = True
+
+    async def fetch(self, client: httpx.AsyncClient) -> FetchedPayload:
+        point_response = await client.get(self.point_url, timeout=self.timeout_seconds)
+        point_response.raise_for_status()
+        point_payload = point_response.json()
+        station_collection_url = point_payload.get("properties", {}).get("observationStations")
+        if not isinstance(station_collection_url, str) or not station_collection_url:
+            raise UpstreamSchemaError("NWS point metadata omitted observation stations")
+
+        stations_response = await client.get(station_collection_url, timeout=self.timeout_seconds)
+        stations_response.raise_for_status()
+        features = stations_response.json().get("features")
+        if not isinstance(features, list) or not features:
+            raise UpstreamSchemaError("NWS returned no observation stations for Miami Beach")
+        station_feature = features[0]
+        if not isinstance(station_feature, dict):
+            raise UpstreamSchemaError("NWS observation station metadata is invalid")
+        station_properties = station_feature.get("properties")
+        if not isinstance(station_properties, dict):
+            raise UpstreamSchemaError("NWS observation station properties are invalid")
+        station_url = station_feature.get("id")
+        if not isinstance(station_url, str) or not station_url:
+            raise UpstreamSchemaError("NWS observation station URL is missing")
+
+        observation_url = f"{station_url.rstrip('/')}/observations/latest?require_qc=true"
+        observation_response = await client.get(observation_url, timeout=self.timeout_seconds)
+        observation_response.raise_for_status()
+        observation_payload = observation_response.json()
+        properties = observation_payload.get("properties")
+        if not isinstance(properties, dict):
+            raise UpstreamSchemaError("NWS latest observation properties are invalid")
+
+        parsed = {
+            "station": {
+                "id": station_properties.get("stationIdentifier"),
+                "name": station_properties.get("name"),
+                "url": station_url,
+                "geometry": station_feature.get("geometry") or {},
+            },
+            "observation": properties,
+            "observation_url": observation_url,
+        }
+        body = json.dumps(parsed, sort_keys=True, separators=(",", ":")).encode()
+        return FetchedPayload(
+            body=body,
+            content_type="application/geo+json",
+            parsed=parsed,
+            etag=observation_response.headers.get("etag"),
+            last_modified=observation_response.headers.get("last-modified"),
+        )
+
+    def normalize(self, payload: Any, snapshot_hash: str) -> list[CanonicalRecord]:
+        if not isinstance(payload, dict):
+            raise UpstreamSchemaError("NWS observation response is not an object")
+        station = payload.get("station")
+        observation = payload.get("observation")
+        if not isinstance(station, dict) or not isinstance(observation, dict):
+            raise UpstreamSchemaError("NWS observation response omitted station or measurement")
+        station_id = str(station.get("id") or "").strip()
+        station_name = compact_text(station.get("name") or station_id)
+        observed = parse_datetime(observation.get("timestamp"))
+        if not station_id or observed is None:
+            raise UpstreamSchemaError("NWS observation identity or timestamp is missing")
+
+        measurement_fields = (
+            "temperature",
+            "relativeHumidity",
+            "windDirection",
+            "windSpeed",
+            "windGust",
+            "visibility",
+            "barometricPressure",
+            "precipitationLastHour",
+        )
+        measurements = {
+            field: observation.get(field)
+            for field in measurement_fields
+            if isinstance(observation.get(field), dict)
+        }
+        retrieved = utc_now()
+        return [
+            CanonicalRecord(
+                id=stable_id(self.source_id, f"{station_id}:{observed.isoformat()}"),
+                source_id=self.source_id,
+                source_name=self.source_name,
+                source_type=SourceType.OFFICIAL_API,
+                authority_level=AuthorityLevel.AUTHORITATIVE,
+                source_record_id=f"{station_id}:{observed.isoformat()}",
+                source_url=str(payload.get("observation_url") or station.get("url") or self.url),
+                title=f"Observed conditions at {station_name}",
+                category=self.category,
+                observed_at=observed,
+                published_at=None,
+                retrieved_at=retrieved,
+                expires_at=observed + timedelta(minutes=30),
+                stale=False,
+                stale_reason=None,
+                confidence=1,
+                geography=station.get("geometry") or {},
+                zip_scope=["33139", "33140"],
+                raw_snapshot_hash=snapshot_hash,
+                schema_version=1,
+                payload={
+                    "station_id": station_id,
+                    "station_name": station_name,
+                    **measurements,
+                },
+            )
+        ]

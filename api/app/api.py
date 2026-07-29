@@ -15,6 +15,7 @@ from .schemas import (
     ResponseMetadata,
     SourceHealth,
     SourceHealthState,
+    SourceHealthSummary,
     VersionResponse,
 )
 
@@ -23,8 +24,15 @@ Session = Annotated[AsyncSession, Depends(session_dependency)]
 
 CATEGORY_GROUPS: dict[str, list[str]] = {
     "incidents": ["pulsepoint_call"],
-    "weather": ["weather_alert", "forecast"],
+    "weather": [
+        "weather_alert",
+        "weather_observation",
+        "forecast",
+        "excessive_rainfall_outlook",
+        "severe_weather_outlook",
+    ],
     "coastal": ["coastal_observation"],
+    "radar": ["radar_status"],
     "tropical": ["tropical"],
     "traffic": ["traffic_incident", "lane_closure"],
     "utilities": ["power_grid_status", "stormwater_pump_asset"],
@@ -37,6 +45,8 @@ CATEGORY_GROUPS: dict[str, list[str]] = {
         "traffic_incident",
         "lane_closure",
         "weather_alert",
+        "excessive_rainfall_outlook",
+        "severe_weather_outlook",
         "flood_zone",
         "evacuation_zone",
         "open_shelter",
@@ -56,7 +66,11 @@ CATEGORY_GROUPS: dict[str, list[str]] = {
 DASHBOARD_CATEGORY_LIMITS: dict[str, int] = {
     "pulsepoint_call": 100,
     "weather_alert": 50,
+    "weather_observation": 10,
     "forecast": 40,
+    "radar_status": 5,
+    "excessive_rainfall_outlook": 50,
+    "severe_weather_outlook": 50,
     "coastal_observation": 100,
     "tropical": 50,
     "traffic_incident": 200,
@@ -127,6 +141,48 @@ def _metadata(records: list[CanonicalRecord], health: list[SourceHealth]) -> Res
     )
 
 
+def _source_health_summary(health: list[SourceHealth]) -> SourceHealthSummary:
+    critical_groups: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+        ("PulsePoint", "prefix", ("pulsepoint",)),
+        ("NWS Alerts", "exact", ("nws-alerts",)),
+        ("NOAA Radar", "exact", ("noaa-mrms-radar-status",)),
+        ("NHC", "exact", ("nhc-current-storms",)),
+        (
+            "Roads",
+            "prefix",
+            (
+                "miami-beach-lane-closures",
+                "fdem-fhp-",
+                "fdem-fl511-",
+                "fl511-",
+            ),
+        ),
+        ("CO-OPS", "prefix", ("coops-",)),
+    )
+
+    def matches(item: SourceHealth, mode: str, identifiers: tuple[str, ...]) -> bool:
+        if mode == "exact":
+            return item.source_id in identifiers
+        return any(item.source_id.startswith(identifier) for identifier in identifiers)
+
+    unavailable: list[str] = []
+    critical_healthy = 0
+    for label, mode, identifiers in critical_groups:
+        members = [item for item in health if matches(item, mode, identifiers)]
+        if any(item.state is SourceHealthState.HEALTHY for item in members):
+            critical_healthy += 1
+        else:
+            unavailable.append(label)
+
+    return SourceHealthSummary(
+        critical_healthy=critical_healthy,
+        critical_total=len(critical_groups),
+        all_healthy=sum(item.state is SourceHealthState.HEALTHY for item in health),
+        all_total=len(health),
+        unavailable_critical=unavailable,
+    )
+
+
 async def _records_response(session: AsyncSession, group: str) -> RecordsResponse:
     repository = Repository(session)
     records = await repository.list_records(CATEGORY_GROUPS[group])
@@ -152,6 +208,11 @@ async def weather(session: Session) -> RecordsResponse:
 @router.get("/api/v1/coastal", response_model=RecordsResponse)
 async def coastal(session: Session) -> RecordsResponse:
     return await _records_response(session, "coastal")
+
+
+@router.get("/api/v1/radar/status", response_model=RecordsResponse)
+async def radar_status(session: Session) -> RecordsResponse:
+    return await _records_response(session, "radar")
 
 
 @router.get("/api/v1/tropical", response_model=RecordsResponse)
@@ -220,7 +281,7 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
         ),
         None,
     )
-    healthy_sources = sum(item.state is SourceHealthState.HEALTHY for item in health)
+    health_summary = _source_health_summary(health)
 
     def kpi(
         identifier: str,
@@ -254,7 +315,7 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
     kpis = [
         kpi(
             "pulsepoint",
-            "PulsePoint Active Calls",
+            "Active Calls",
             len(active_calls),
             "PulsePoint advisory",
             "pulsepoint_call",
@@ -294,9 +355,12 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
         ),
         kpi(
             "sources",
-            "Healthy Data Sources",
-            healthy_sources,
-            "Dashboard source monitoring",
+            "Critical Feeds",
+            f"{health_summary.critical_healthy}/{health_summary.critical_total}",
+            (
+                f"{health_summary.all_healthy}/{health_summary.all_total} "
+                "all configured sources healthy"
+            ),
             "source_health",
             datetime.now(UTC),
         ),
@@ -306,6 +370,7 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
         kpis=kpis,
         records=records,
         source_health=health,
+        health_summary=health_summary,
     )
 
 

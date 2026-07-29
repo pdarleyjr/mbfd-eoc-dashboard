@@ -13,6 +13,7 @@ dependencies = [
   "apscheduler==3.11.3",
   "asyncpg==0.31.0",
   "beautifulsoup4==4.14.3",
+  "defusedxml==0.7.1",
   "fastapi==0.140.2",
   "geoalchemy2==0.20.0",
   "httpx==0.28.1",
@@ -40,6 +41,7 @@ dev = [
   "respx==0.22.0",
   "ruff==0.16.0",
   "testcontainers[postgres,redis]==4.14.1",
+  "types-defusedxml==0.7.0.20260504",
   "types-python-dateutil==2.9.0.20260305"
 ]
 
