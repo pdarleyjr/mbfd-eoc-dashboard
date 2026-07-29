@@ -4,6 +4,7 @@ import type {CanonicalRecord} from '../../types'
 export const categoryLayer: Readonly<Record<string, LayerKey>> = {
   pulsepoint_call: 'pulsepoint',
   traffic_incident: 'traffic',
+  traffic_camera: 'trafficCameras',
   lane_closure: 'laneClosures',
   weather_alert: 'alerts',
   excessive_rainfall_outlook: 'outlooks',

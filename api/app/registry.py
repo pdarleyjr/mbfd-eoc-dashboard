@@ -359,6 +359,28 @@ def _arcgis_sources() -> list[Adapter]:
         ),
         ArcGisAdapter(
             ArcGisSource(
+                source_id="fdem-fl511-traffic-cameras",
+                source_name="FDEM / FL511 Traffic Cameras",
+                url=(
+                    "https://services.arcgis.com/3wFbqsFPLeKqOlIK/arcgis/rest/services/"
+                    "FL511_Traffic_Cameras/FeatureServer/0"
+                ),
+                category="traffic_camera",
+                title_field="DESCRIPT",
+                id_field="ID",
+                poll_interval_seconds=300,
+                stale_threshold_seconds=900,
+                include_fields=(
+                    "DESCRIPT",
+                    "COUNTY",
+                    "HIGHWAY",
+                    "DIRECTION",
+                    "IMAGE",
+                ),
+            )
+        ),
+        ArcGisAdapter(
+            ArcGisSource(
                 source_id="miami-dade-hospitals",
                 source_name="Miami-Dade GIS Hospital Locations",
                 url=(

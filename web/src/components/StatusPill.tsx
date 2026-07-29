@@ -7,7 +7,15 @@ import {
 import type {SourceHealthState} from '../types'
 import {sourceStateLabel} from '../lib/format'
 
-export function StatusPill({state}: {state: SourceHealthState}) {
+export function StatusPill({
+  state,
+  onClick,
+  ariaLabel,
+}: {
+  state: SourceHealthState
+  onClick?: () => void
+  ariaLabel?: string
+}) {
   const Icon =
     state === 'healthy'
       ? CheckmarkCircle16Regular
@@ -16,10 +24,22 @@ export function StatusPill({state}: {state: SourceHealthState}) {
         : state === 'unavailable'
           ? ErrorCircle16Regular
           : Warning16Regular
-  return (
-    <span className={`status-pill status-${state}`}>
+  const contents = (
+    <>
       <Icon aria-hidden />
       {sourceStateLabel(state)}
-    </span>
+    </>
   )
+  if (onClick)
+    return (
+      <button
+        type="button"
+        className={`status-pill status-${state} status-pill-button`}
+        aria-label={ariaLabel}
+        onClick={onClick}
+      >
+        {contents}
+      </button>
+    )
+  return <span className={`status-pill status-${state}`}>{contents}</span>
 }

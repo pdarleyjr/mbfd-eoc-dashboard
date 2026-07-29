@@ -271,7 +271,7 @@ describe('Dashboard', () => {
       screen.getByRole('heading', {name: 'Miami Beach Emergency Management Dashboard'}),
     ).toBeVisible()
     const powerTile = screen.getByRole('button', {
-      name: /FPL Regional Grid Demand/i,
+      name: /Power/i,
     })
     expect(within(powerTile).getByText('Not available')).toBeVisible()
     expect(screen.getByRole('heading', {name: 'Active Calls'})).toBeVisible()
@@ -299,6 +299,8 @@ describe('Dashboard', () => {
     expect(within(road).getByText(/Water-main extension work/)).toBeVisible()
     expect(within(road).getByText('Active')).toBeVisible()
     expect(screen.getByText(/Miami-Dade DEM is monitoring potential Atlantic storms/)).toBeVisible()
+    const powerTile = screen.getByRole('button', {name: /Power/})
+    fireEvent.click(powerTile)
     expect(
       screen.getByText('Regional grid indicator; not a Miami Beach customer-outage count'),
     ).toBeVisible()
@@ -311,6 +313,7 @@ describe('Dashboard', () => {
       'href',
       'https://www.fpl.com/powertracker',
     )
+    fireEvent.click(screen.getByRole('button', {name: 'Close power details'}))
 
     fireEvent.click(pulseCall)
     expect(useDashboardStore.getState().selectedRecordId).toBe('call')
@@ -381,7 +384,17 @@ describe('Dashboard', () => {
   it('renders honest fallback values for partial operational records', () => {
     const edgeSummary: DashboardSummary = {
       ...baseSummary,
-      kpis: [],
+      kpis: [
+        {
+          id: 'power',
+          label: 'Power',
+          value: null,
+          unavailable: true,
+          source: 'EIA-930 · FPL regional; not local outage data',
+          updated_at: null,
+          detail_category: 'power_grid_status',
+        },
+      ],
       records: [
         {
           ...record('call-recent-edge', 'pulsepoint_call', {
@@ -455,7 +468,9 @@ describe('Dashboard', () => {
       within(trafficPanel).getByRole('button', {name: /Causeway status report/i}),
     ).toHaveTextContent('Status reported by source')
     expect(screen.getByText('Official update without a supplied summary')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', {name: /Power/}))
     expect(screen.getByText('Value unavailable')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', {name: 'Close power details'}))
 
     fireEvent.click(call)
     const drawer = document.querySelector<HTMLElement>('.detail-drawer')
@@ -465,7 +480,7 @@ describe('Dashboard', () => {
     expect(within(drawer).getByText('Status not reported')).toBeVisible()
     expect(within(drawer).getByText(/Cleared/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', {name: 'Close record details'}))
-    fireEvent.click(screen.getByRole('button', {name: 'Open dashboard data-source health'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Open dashboard health: Unavailable'}))
     expect(screen.getByText('No retained records')).toBeVisible()
   })
 
@@ -519,6 +534,89 @@ describe('Dashboard', () => {
     fireEvent.click(screen.getByRole('radio', {name: /Compact/}))
     expect(useDashboardStore.getState().density).toBe('compact')
     fireEvent.click(screen.getByRole('button', {name: 'Close settings'}))
+  })
+
+  it('condenses power, shelters, hospital, and feed health into top-card drawers', () => {
+    queryResult = {
+      ...queryResult,
+      data: {
+        ...richSummary,
+        metadata: {...richSummary.metadata, stale: false, source_health: 'healthy'},
+        health_summary: {
+          critical_healthy: 6,
+          critical_total: 6,
+          all_healthy: 1,
+          all_total: 1,
+          unavailable_critical: [],
+        },
+        kpis: [
+          ...richSummary.kpis,
+          {
+            id: 'shelters',
+            label: 'Open Shelter Records',
+            value: 1,
+            unavailable: false,
+            source: 'FEMA Open Shelters',
+            updated_at: '2026-07-27T14:00:00Z',
+            detail_category: 'open_shelter',
+          },
+          {
+            id: 'power',
+            label: 'Power',
+            value: '23,418 MWh',
+            unavailable: false,
+            source: 'EIA-930 · FPL regional; not local outage data',
+            updated_at: '2026-07-27T14:00:00Z',
+            detail_category: 'power_grid_status',
+          },
+          {
+            id: 'sources',
+            label: 'Critical Feeds',
+            value: '6/6',
+            unavailable: false,
+            source: '1/1 all configured sources healthy',
+            updated_at: '2026-07-27T14:00:00Z',
+            detail_category: 'source_health',
+          },
+        ],
+      },
+    }
+    renderDashboard()
+
+    expect(screen.queryByRole('button', {name: /Critical Feeds/})).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', {name: 'Dashboard Data-Source Health'}),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', {name: 'Shelter & Facility Information'}),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', {name: 'Power, Assets & Transit Awareness'}),
+    ).not.toBeInTheDocument()
+
+    const power = screen.getByRole('button', {name: /Power.*23,418 MWh/i})
+    fireEvent.click(power)
+    expect(screen.getByRole('heading', {name: 'Power & Utility Awareness'})).toBeVisible()
+    expect(screen.getByRole('link', {name: 'Open FPL Power Tracker'})).toBeVisible()
+    fireEvent.click(screen.getByRole('button', {name: 'Close power details'}))
+
+    fireEvent.click(screen.getByRole('button', {name: /Open Shelter Records/}))
+    expect(screen.getByRole('heading', {name: 'Shelter Records'})).toBeVisible()
+    expect(screen.getByText('Record shelter')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', {name: 'Close shelter records'}))
+
+    fireEvent.click(screen.getByRole('button', {name: /Local Hospital.*Mount Sinai/i}))
+    expect(screen.getByRole('heading', {name: 'Mount Sinai Medical Center'})).toBeVisible()
+    expect(screen.getByText('4300 Alton Road, Miami Beach, FL 33140')).toBeVisible()
+    expect(screen.getByText(/56 treatment rooms/)).toBeVisible()
+    expect(screen.getByText('Comprehensive Stroke Center')).toBeVisible()
+    expect(screen.getByText('MCI capacity: 8 red · 15 yellow · 20 green')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', {name: 'Close hospital details'}))
+
+    fireEvent.click(screen.getByRole('button', {name: 'Open dashboard health: Healthy'}))
+    expect(screen.getByRole('heading', {name: 'System Health & Critical Feeds'})).toBeVisible()
+    expect(screen.getByText('6/6 critical feeds')).toBeVisible()
+    expect(screen.getByText('1/1 all configured sources')).toBeVisible()
   })
 
   it('selects the first matching record from a KPI tile', () => {

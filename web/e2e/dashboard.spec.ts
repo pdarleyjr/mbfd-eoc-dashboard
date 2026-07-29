@@ -173,6 +173,26 @@ const hotelFacilityRecord = {
   payload: {},
 }
 
+const trafficCameraRecord = {
+  ...record,
+  id: 'traffic-camera-1385',
+  source_id: 'fdem-fl511-traffic-cameras',
+  source_name: 'FDEM / FL511 Traffic Cameras',
+  source_record_id: '1385',
+  title: 'I-395 East of Bridge Road',
+  category: 'traffic_camera',
+  stale: false,
+  stale_reason: null,
+  geography: {type: 'Point', coordinates: [-80.151245, 25.771976]},
+  payload: {
+    DESCRIPT: 'I-395 East of Bridge Road',
+    COUNTY: 'Miami-Dade',
+    HIGHWAY: 'I-395',
+    DIRECTION: 'E',
+    IMAGE: 'https://images-dis.divas.cloud/DGI/chan-256_h.jpg',
+  },
+}
+
 const noticeRecord = {
   ...record,
   id: 'notice-1',
@@ -259,13 +279,40 @@ const summary = {
       detail_category: 'lane_closure',
     },
     {
+      id: 'alerts',
+      label: 'Weather Alerts',
+      value: 0,
+      unavailable: false,
+      source: 'National Weather Service',
+      updated_at: now,
+      detail_category: 'weather_alert',
+    },
+    {
       id: 'power',
-      label: 'FPL Regional Grid Demand',
+      label: 'Power',
       value: '23,418 MWh',
       unavailable: false,
       source: 'EIA-930 · FPL regional; not local outage data',
       updated_at: now,
       detail_category: 'power_grid_status',
+    },
+    {
+      id: 'shelters',
+      label: 'Open Shelter Records',
+      value: 0,
+      unavailable: false,
+      source: 'FEMA Open Shelters',
+      updated_at: now,
+      detail_category: 'open_shelter',
+    },
+    {
+      id: 'sources',
+      label: 'Critical Feeds',
+      value: '6/6',
+      unavailable: false,
+      source: '1/1 all configured sources healthy',
+      updated_at: now,
+      detail_category: 'source_health',
     },
   ],
   records: [
@@ -276,6 +323,7 @@ const summary = {
     floodRecord,
     multiPointFacilityRecord,
     hotelFacilityRecord,
+    trafficCameraRecord,
     noticeRecord,
     powerRecord,
     utilityAssetRecord,
@@ -493,9 +541,7 @@ test('shows operational record content and synchronizes cards with map selection
   await expect(page.locator('.notices-panel')).toContainText(
     'Miami-Dade DEM is monitoring potential Atlantic storms.',
   )
-  await expect(page.locator('.utility-panel')).toContainText(
-    'Regional grid indicator; not a Miami Beach customer-outage count',
-  )
+  await expect(page.getByRole('button', {name: /Power.*23,418 MWh/i})).toBeVisible()
 
   const map = page.getByRole('region', {name: 'Miami Beach operational map'})
   const line = map.getByRole('button', {name: /Washington Avenue lane restriction/i})
@@ -531,12 +577,25 @@ test('loads honest source states and supports drawers and layer controls', async
   await page.getByRole('button', {name: 'Layer'}).click({force: true})
   const floodLayer = page.getByRole('checkbox', {name: 'Flood zones'})
   await expect(floodLayer).not.toBeChecked()
+  const cameraLayer = page.getByRole('checkbox', {name: 'FL511 traffic cameras'})
+  await expect(cameraLayer).not.toBeChecked()
   await floodLayer.evaluate((element) => element.scrollIntoView({block: 'center'}))
   await floodLayer.check({force: true})
+  await cameraLayer.check({force: true})
   await expect(floodLayer).toBeChecked()
+  await expect(cameraLayer).toBeChecked()
   await page.getByRole('button', {name: 'Layer'}).click({force: true})
 
-  await page.getByRole('button', {name: /Verified lane restriction/}).click()
+  const trafficCamera = page.getByRole('button', {name: /I-395 East of Bridge Road/i})
+  await trafficCamera.click()
+  await expect(page.getByAltText('Live FL511 view: I-395 East of Bridge Road')).toBeVisible()
+  await closeRecordDetails(page)
+
+  await page
+    .locator('.traffic-panel')
+    .getByRole('button', {name: /1881 WASHINGTON AVE.*Water-main extension/i})
+    .first()
+    .click()
   await expect(page.getByRole('link', {name: 'Open official source'})).toBeVisible()
   await expect(page.getByRole('heading', {name: 'Source excerpt'})).toBeVisible()
   const drawer = page.locator('.detail-drawer')
@@ -560,7 +619,35 @@ test('loads honest source states and supports drawers and layer controls', async
   )
   await closeRecordDetails(page)
 
-  await page.getByRole('button', {name: 'Open dashboard data-source health'}).click()
+  await expect(page.getByRole('heading', {name: 'Dashboard Data-Source Health'})).toHaveCount(0)
+  await expect(page.locator('.health-panel,.utility-panel,.facilities-panel')).toHaveCount(0)
+  await expect(page.getByRole('button', {name: /Critical Feeds/})).toHaveCount(0)
+
+  await page.getByRole('button', {name: /Power.*23,418 MWh/i}).click()
+  await expect(page.getByRole('heading', {name: 'Power & Utility Awareness'})).toBeVisible()
+  await expect(
+    page.getByText(/documented open FPL customer-outage API is not currently/i),
+  ).toBeVisible()
+  await page.getByRole('button', {name: 'Close power details'}).click()
+  await expect(page.getByRole('heading', {name: 'Power & Utility Awareness'})).toBeHidden()
+
+  await page.getByRole('button', {name: /Open Shelter Records/i}).click()
+  await expect(page.getByRole('heading', {name: 'Shelter Records'})).toBeVisible()
+  await expect(page.getByText(/this does not mean no shelters exist/i)).toBeVisible()
+  await page.getByRole('button', {name: 'Close shelter records'}).click()
+  await expect(page.getByRole('heading', {name: 'Shelter Records'})).toBeHidden()
+
+  await page.getByRole('button', {name: /Local Hospital.*Mount Sinai Medical Center/i}).click()
+  await expect(page.getByRole('heading', {name: 'Mount Sinai Medical Center'})).toBeVisible()
+  await expect(page.getByText('664 licensed beds')).toBeVisible()
+  await expect(page.getByText(/8 red · 15 yellow · 20 green/i)).toBeVisible()
+  await page.getByRole('button', {name: 'Close hospital details'}).click()
+  await expect(page.getByRole('heading', {name: 'Mount Sinai Medical Center'})).toBeHidden()
+
+  await page.getByRole('button', {name: 'Open dashboard health: Stale'}).click()
+  await expect(page.getByRole('heading', {name: 'System Health & Critical Feeds'})).toBeVisible()
+  await expect(page.getByLabel('System health summary')).toContainText('6/6 critical feeds')
+  await expect(page.getByLabel('System health summary')).toContainText('0/1 all configured sources')
   await expect(page.getByText('Source temporarily unavailable')).toBeVisible()
   await expect(page.getByText('Retained')).toBeVisible()
 
@@ -678,7 +765,7 @@ test('collapses every over-map control into the Layer button', async ({page}) =>
 test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
   await page.goto('/')
   const sourceHealthButton = page.getByRole('button', {
-    name: 'Open dashboard data-source health',
+    name: 'Open dashboard health: Stale',
   })
   const sourceHealthBox = await sourceHealthButton.boundingBox()
 
@@ -749,6 +836,10 @@ test('does not overlap dashboard panels or overflow horizontally', async ({page}
         const box = document.querySelector<HTMLElement>('.weather-panel')?.getBoundingClientRect()
         return box ? {top: box.top, bottom: box.bottom} : null
       })(),
+      mapPanel: (() => {
+        const box = document.querySelector<HTMLElement>('.map-panel')?.getBoundingClientRect()
+        return box ? {top: box.top, bottom: box.bottom} : null
+      })(),
       weatherOverflow: Array.from(
         document.querySelectorAll<HTMLElement>(
           '.weather-decision-grid,.weather-panel > .weather-alert,.tide-decision-strip',
@@ -766,11 +857,40 @@ test('does not overlap dashboard panels or overflow horizontally', async ({page}
           })
           .map((element) => element.className || element.tagName)
       }),
+      kpiOverflow: Array.from(document.querySelectorAll<HTMLElement>('.kpi-tile')).flatMap(
+        (container) => {
+          const bounds = container.getBoundingClientRect()
+          return Array.from(container.children)
+            .filter((element) => {
+              const box = element.getBoundingClientRect()
+              return (
+                box.width > 0 &&
+                box.height > 0 &&
+                (box.left < bounds.left - 1 ||
+                  box.right > bounds.right + 1 ||
+                  box.top < bounds.top - 1 ||
+                  box.bottom > bounds.bottom + 1)
+              )
+            })
+            .map((element) => element.className || element.tagName)
+        },
+      ),
     }
   })
 
   expect(layout.overlaps).toEqual([])
+  expect(layout.kpiOverflow).toEqual([])
   expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
+  if ((page.viewportSize()?.width ?? 0) >= 768) {
+    expect(layout.mapPanel).not.toBeNull()
+    expect(layout.weatherPanel).not.toBeNull()
+    expect(
+      Math.abs((layout.mapPanel?.top ?? 0) - (layout.weatherPanel?.top ?? 0)),
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs((layout.mapPanel?.bottom ?? 0) - (layout.weatherPanel?.bottom ?? 0)),
+    ).toBeLessThanOrEqual(1)
+  }
   if ((page.viewportSize()?.width ?? 0) >= 1400) {
     expect(layout.weatherPanel).not.toBeNull()
     expect(layout.weather).toHaveLength(3)
@@ -781,7 +901,9 @@ test('does not overlap dashboard panels or overflow horizontally', async ({page}
   }
 })
 
-test('keeps every bottom panel reachable without clipping record text', async ({page}) => {
+test('contains the operational layout in one viewport without clipping record text', async ({
+  page,
+}) => {
   await page.goto('/')
   await expect(page.locator('.dashboard-content')).toBeVisible()
   const dimensions = await page.evaluate(() => ({
@@ -791,85 +913,29 @@ test('keeps every bottom panel reachable without clipping record text', async ({
       document.querySelector<HTMLElement>('.dashboard-content')?.scrollHeight ?? 0,
     contentClientHeight:
       document.querySelector<HTMLElement>('.dashboard-content')?.clientHeight ?? 0,
-    usesScrollableWideLayout: matchMedia('(min-width: 87.51rem) and (max-height: 52rem)').matches,
   }))
   const viewport = page.viewportSize()
-  if ((viewport?.width ?? 0) >= 1400 && !dimensions.usesScrollableWideLayout) {
+  if ((viewport?.width ?? 0) >= 768) {
     expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1)
     expect(dimensions.contentScrollHeight).toBeLessThanOrEqual(dimensions.contentClientHeight + 1)
   } else {
-    const pageScrolls = dimensions.scrollHeight > dimensions.clientHeight
-    const dashboardScrolls = dimensions.contentScrollHeight > dimensions.contentClientHeight
-    if (!pageScrolls && !dashboardScrolls) {
-      const diagnostics = await page.evaluate(() => {
-        const shell = document.querySelector<HTMLElement>('.app-shell')
-        const content = document.querySelector<HTMLElement>('.dashboard-content')
-        const grid = document.querySelector<HTMLElement>('.dashboard-grid')
-        const health = document.querySelector<HTMLElement>('.health-panel')
-        return {
-          mediaMatches: matchMedia('(min-width: 87.51rem) and (max-height: 52rem)').matches,
-          bodyOverflow: getComputedStyle(document.body).overflow,
-          shell: shell && {
-            display: getComputedStyle(shell).display,
-            height: getComputedStyle(shell).height,
-            rows: getComputedStyle(shell).gridTemplateRows,
-            clientHeight: shell.clientHeight,
-            scrollHeight: shell.scrollHeight,
-            overflow: getComputedStyle(shell).overflow,
-          },
-          content: content && {
-            flex: getComputedStyle(content).flex,
-            height: getComputedStyle(content).height,
-            rows: getComputedStyle(content).gridTemplateRows,
-            clientHeight: content.clientHeight,
-            scrollHeight: content.scrollHeight,
-            overflow: getComputedStyle(content).overflow,
-          },
-          grid: grid && {
-            height: getComputedStyle(grid).height,
-            rows: getComputedStyle(grid).gridTemplateRows,
-          },
-          healthBottom: health?.getBoundingClientRect().bottom,
-        }
-      })
-      throw new Error(`Dashboard remains clipped: ${JSON.stringify(diagnostics)}`)
-    }
-    expect(pageScrolls || dashboardScrolls).toBe(true)
+    expect(dimensions.scrollHeight).toBeGreaterThanOrEqual(dimensions.clientHeight)
   }
 
-  const finalPanel = page.locator('.health-panel')
-  await finalPanel.scrollIntoViewIfNeeded()
-  const finalBox = await finalPanel.boundingBox()
-  expect(finalBox).not.toBeNull()
-  if (finalBox) {
-    expect(finalBox.y).toBeLessThan(page.viewportSize()?.height ?? 0)
-    expect(finalBox.y + finalBox.height).toBeLessThanOrEqual((page.viewportSize()?.height ?? 0) + 1)
-  }
-
-  const facilityColumn = page.locator('.facilities-panel .split-panel > div').last()
-  const finalFacility = facilityColumn.locator('.record-list button').last()
-  if ((await finalFacility.count()) > 0) {
-    const facilityBounds = await facilityColumn.boundingBox()
-    const recordBounds = await finalFacility.boundingBox()
-    expect(facilityBounds).not.toBeNull()
-    expect(recordBounds).not.toBeNull()
-    if (facilityBounds && recordBounds) {
-      expect(recordBounds.y + recordBounds.height).toBeLessThanOrEqual(
-        facilityBounds.y + facilityBounds.height + 1,
+  await expect(page.locator('.health-panel,.utility-panel,.facilities-panel')).toHaveCount(0)
+  const gridBounds = await page.locator('.dashboard-grid').boundingBox()
+  expect(gridBounds).not.toBeNull()
+  for (const selector of ['.pulsepoint-panel', '.traffic-panel', '.notices-panel']) {
+    const panelBounds = await page.locator(selector).boundingBox()
+    expect(panelBounds, `${selector} has no layout box`).not.toBeNull()
+    if (gridBounds && panelBounds) {
+      expect(panelBounds.x).toBeGreaterThanOrEqual(gridBounds.x - 1)
+      expect(panelBounds.y).toBeGreaterThanOrEqual(gridBounds.y - 1)
+      expect(panelBounds.x + panelBounds.width).toBeLessThanOrEqual(
+        gridBounds.x + gridBounds.width + 1,
       )
-    }
-  }
-
-  const utilityPanel = page.locator('.utility-panel')
-  const finalUtility = utilityPanel.locator('.record-list button').last()
-  if ((await finalUtility.count()) > 0) {
-    const utilityBounds = await utilityPanel.boundingBox()
-    const recordBounds = await finalUtility.boundingBox()
-    expect(utilityBounds).not.toBeNull()
-    expect(recordBounds).not.toBeNull()
-    if (utilityBounds && recordBounds) {
-      expect(recordBounds.y + recordBounds.height).toBeLessThanOrEqual(
-        utilityBounds.y + utilityBounds.height + 1,
+      expect(panelBounds.y + panelBounds.height).toBeLessThanOrEqual(
+        gridBounds.y + gridBounds.height + 1,
       )
     }
   }

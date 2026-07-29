@@ -42,6 +42,7 @@ const layerGroups: ReadonlyArray<{
     layers: [
       ['pulsepoint', 'PulsePoint advisory calls'],
       ['traffic', 'Traffic incidents'],
+      ['trafficCameras', 'FL511 traffic cameras'],
       ['laneClosures', 'Lane closures'],
     ],
   },
@@ -95,6 +96,7 @@ function pointOf(record: CanonicalRecord): {lat: number; lng: number} | null {
 
 function markerGlyph(record: CanonicalRecord): string {
   if (record.category === 'pulsepoint_call') return '!'
+  if (record.category === 'traffic_camera') return 'C'
   if (record.category === 'open_shelter' || record.category === 'evacuation_center') return 'S'
   if (record.category === 'hospital') return 'H'
   if (record.category === 'hotel') return 'L'
@@ -427,7 +429,8 @@ function LeafletMap({
         marker.on('add', () => {
           marker.getElement()?.setAttribute('aria-label', `${record.title}, ${record.source_name}`)
         })
-        clusters.addLayer(marker)
+        if (selected) marker.addTo(allFeatures)
+        else clusters.addLayer(marker)
         continue
       }
       if (!record.geography.type) continue

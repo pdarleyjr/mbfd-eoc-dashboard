@@ -6,13 +6,14 @@ from app.registry import source_registry
 def test_registry_has_no_duplicate_source_ids() -> None:
     sources = source_registry()
     ids = [source.source_id for source in sources]
-    assert len(sources) == 48
+    assert len(sources) == 49
     assert len(ids) == len(set(ids))
     assert {
         "eia-fpl-demand",
         "eia-fpl-day-ahead-demand-forecast",
         "eia-fpl-net-generation",
     } <= set(ids)
+    assert "fdem-fl511-traffic-cameras" in ids
     assert "fdem-power-outage-miami-dade" not in ids
     assert "fpl-power-tracker" not in ids
     assert {
@@ -61,6 +62,7 @@ def test_registry_covers_required_operational_categories() -> None:
         "excessive_rainfall_outlook",
         "severe_weather_outlook",
         "traffic_incident",
+        "traffic_camera",
         "lane_closure",
         "power_grid_status",
         "open_shelter",
@@ -70,6 +72,27 @@ def test_registry_covers_required_operational_categories() -> None:
         "official_notice",
         "stormwater_pump_asset",
     } <= categories
+
+
+def test_fl511_traffic_cameras_use_the_public_official_feature_layer() -> None:
+    source = next(
+        source
+        for source in source_registry()
+        if source.source_id == "fdem-fl511-traffic-cameras"
+    )
+    query = parse_qs(urlparse(source.url).query)
+
+    assert "FL511_Traffic_Cameras/FeatureServer/0/query" in source.url
+    assert source.category == "traffic_camera"
+    assert source.poll_interval_seconds == 300
+    assert set(query["outFields"][0].split(",")) == {
+        "ID",
+        "DESCRIPT",
+        "COUNTY",
+        "HIGHWAY",
+        "DIRECTION",
+        "IMAGE",
+    }
 
 
 def test_scraped_sources_are_marked_supplemental() -> None:
@@ -87,7 +110,11 @@ def test_road_sources_request_only_layer_specific_fields() -> None:
     sources = {
         source.source_id: set(parse_qs(urlparse(source.url).query)["outFields"][0].split(","))
         for source in source_registry()
-        if source.source_id.startswith("fdem-fhp-") or source.source_id.startswith("fdem-fl511-")
+        if source.source_id.startswith("fdem-fhp-")
+        or (
+            source.source_id.startswith("fdem-fl511-")
+            and source.source_id != "fdem-fl511-traffic-cameras"
+        )
     }
     assert sources["fdem-fhp-closures"] == {
         "OBJECTID",

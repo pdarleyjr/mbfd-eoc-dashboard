@@ -149,15 +149,13 @@ async def test_dashboard_summary_counts_only_supported_metrics(
 
     summary = await api.dashboard_summary(object())
 
-    assert [item.value for item in summary.kpis] == [1, 1, 1, 1, "23,418 MWh", "0/6"]
+    assert [item.value for item in summary.kpis] == [1, 1, 1, 1, "23,418 MWh"]
     assert all(not item.unavailable for item in summary.kpis)
     power = next(item for item in summary.kpis if item.id == "power")
-    assert power.label == "FPL Regional Grid Demand"
+    assert power.label == "Power"
     assert power.detail_category == "power_grid_status"
     assert "not local outage" in power.source
-    source_health = next(item for item in summary.kpis if item.id == "sources")
-    assert source_health.label == "Critical Feeds"
-    assert source_health.source == "1/1 all configured sources healthy"
+    assert "sources" not in {item.id for item in summary.kpis}
 
 
 async def test_dashboard_summary_uses_source_refresh_for_empty_count_kpis(

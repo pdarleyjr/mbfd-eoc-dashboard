@@ -3,6 +3,7 @@ import {create} from 'zustand'
 export type LayerKey =
   | 'pulsepoint'
   | 'traffic'
+  | 'trafficCameras'
   | 'laneClosures'
   | 'radar'
   | 'alerts'
@@ -23,6 +24,7 @@ type Density = 'compact' | 'comfortable'
 const layerDefaults: Record<LayerKey, boolean> = {
   pulsepoint: true,
   traffic: true,
+  trafficCameras: false,
   laneClosures: true,
   radar: false,
   alerts: true,

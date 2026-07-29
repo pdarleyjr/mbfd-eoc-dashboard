@@ -34,7 +34,7 @@ CATEGORY_GROUPS: dict[str, list[str]] = {
     "coastal": ["coastal_observation"],
     "radar": ["radar_status"],
     "tropical": ["tropical"],
-    "traffic": ["traffic_incident", "lane_closure"],
+    "traffic": ["traffic_incident", "lane_closure", "traffic_camera"],
     "utilities": ["power_grid_status", "stormwater_pump_asset"],
     "shelters": ["open_shelter", "evacuation_center"],
     "facilities": ["hospital", "hotel"],
@@ -43,6 +43,7 @@ CATEGORY_GROUPS: dict[str, list[str]] = {
     "map": [
         "pulsepoint_call",
         "traffic_incident",
+        "traffic_camera",
         "lane_closure",
         "weather_alert",
         "excessive_rainfall_outlook",
@@ -74,6 +75,7 @@ DASHBOARD_CATEGORY_LIMITS: dict[str, int] = {
     "coastal_observation": 100,
     "tropical": 50,
     "traffic_incident": 200,
+    "traffic_camera": 100,
     "lane_closure": 200,
     "power_grid_status": 10,
     "stormwater_pump_asset": 200,
@@ -371,22 +373,11 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
         ),
         kpi(
             "power",
-            "FPL Regional Grid Demand",
+            "Power",
             grid_value(power),
             "EIA-930 · FPL regional; not local outage data",
             "power_grid_status",
             (power.observed_at or power.retrieved_at) if power else None,
-        ),
-        kpi(
-            "sources",
-            "Critical Feeds",
-            f"{health_summary.critical_healthy}/{health_summary.critical_total}",
-            (
-                f"{health_summary.all_healthy}/{health_summary.all_total} "
-                "all configured sources healthy"
-            ),
-            "source_health",
-            datetime.now(UTC),
         ),
     ]
     return DashboardSummary(

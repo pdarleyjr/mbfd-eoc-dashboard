@@ -12,16 +12,15 @@ import {
 } from '@fluentui/react-components'
 import {
   ArrowMaximize24Regular,
-  Database24Regular,
   Dismiss24Regular,
   Settings24Regular,
   ShieldError24Regular,
 } from '@fluentui/react-icons'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {useDashboard} from '../hooks/useDashboard'
-import {formatAge, localTime, recordTime, valueText} from '../lib/format'
+import {formatAge, localTime, recordTime, sourceStateLabel, valueText} from '../lib/format'
 import {useDashboardStore} from '../store/dashboardStore'
-import type {CanonicalRecord} from '../types'
+import type {CanonicalRecord, DashboardSummary} from '../types'
 import {StatusPill} from './StatusPill'
 
 const OperationalMap = lazy(async () => {
@@ -319,16 +318,19 @@ function NoticeRecordList({records, limit = 3}: {records: CanonicalRecord[]; lim
   )
 }
 
+function powerMetricText(record: CanonicalRecord | undefined): string | null {
+  if (!record) return null
+  const value = record.payload.value
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  const unit = record.payload.unit === 'megawatthours' ? 'MWh' : valueText(record.payload.unit)
+  return `${new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format(value)} ${unit}`
+}
+
 function PowerGridStatus({records}: {records: CanonicalRecord[]}) {
   const selectRecord = useDashboardStore((state) => state.selectRecord)
   const demand = records.find((record) => record.payload.metric_type === 'D') ?? records[0]
   if (!demand) return null
-  const value = demand.payload.value
-  const unit = demand.payload.unit === 'megawatthours' ? 'MWh' : valueText(demand.payload.unit)
-  const renderedValue =
-    typeof value === 'number'
-      ? `${new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format(value)} ${unit}`
-      : 'Value unavailable'
+  const renderedValue = powerMetricText(demand) ?? 'Value unavailable'
   return (
     <div className="power-grid-section">
       <button type="button" className="power-grid-card" onClick={() => selectRecord(demand.id)}>
@@ -577,12 +579,10 @@ function immediateAttention(
 
 function SourceDrawer({
   health,
+  summary,
 }: {
-  health: ReturnType<typeof useDashboard>['data'] extends infer T
-    ? T extends {source_health: infer H}
-      ? H
-      : never
-    : never
+  health: DashboardSummary['source_health']
+  summary: DashboardSummary['health_summary'] | undefined
 }) {
   const open = useDashboardStore((state) => state.sourceDrawerOpen)
   const setOpen = useDashboardStore((state) => state.setSourceDrawerOpen)
@@ -605,10 +605,27 @@ function SourceDrawer({
             />
           }
         >
-          Dashboard Data-Source Health
+          System Health & Critical Feeds
         </DrawerHeaderTitle>
       </DrawerHeader>
       <DrawerBody>
+        <div className="source-health-overview" aria-label="System health summary">
+          <strong>
+            {summary
+              ? `${summary.critical_healthy}/${summary.critical_total} critical feeds`
+              : 'Critical feeds not reported'}
+          </strong>
+          <strong>
+            {summary
+              ? `${summary.all_healthy}/${summary.all_total} all configured sources`
+              : 'Configured sources not reported'}
+          </strong>
+          <span>
+            {summary?.unavailable_critical.length
+              ? `Needs attention: ${summary.unavailable_critical.join(', ')}`
+              : 'No critical feed group is currently reported unavailable.'}
+          </span>
+        </div>
         <div className="source-health-table" role="table" aria-label="Data source status">
           {Array.isArray(health) && health.length ? (
             health.map((source) => (
@@ -666,6 +683,214 @@ function SourceDrawer({
   )
 }
 
+function PowerDrawer({
+  open,
+  onOpenChange,
+  powerRecords,
+  supportingRecords,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  powerRecords: CanonicalRecord[]
+  supportingRecords: CanonicalRecord[]
+}) {
+  return (
+    <Drawer
+      type="overlay"
+      position="end"
+      size="large"
+      open={open}
+      onOpenChange={(_, data) => onOpenChange(data.open)}
+    >
+      <DrawerHeader>
+        <DrawerHeaderTitle
+          action={
+            <Button
+              appearance="subtle"
+              icon={<Dismiss24Regular />}
+              aria-label="Close power details"
+              onClick={() => onOpenChange(false)}
+            />
+          }
+        >
+          Power & Utility Awareness
+        </DrawerHeaderTitle>
+      </DrawerHeader>
+      <DrawerBody>
+        <PowerGridStatus records={powerRecords} />
+        <section className="drawer-section" aria-labelledby="local-outage-heading">
+          <h3 id="local-outage-heading">Local FPL customer outages</h3>
+          <p>
+            A documented open FPL customer-outage API is not currently available to this dashboard.
+            The official FPL Power Tracker remains the authoritative local outage view.
+          </p>
+          {powerRecords.length === 0 && (
+            <a
+              href="https://www.fpl.com/powertracker"
+              target="_blank"
+              rel="noreferrer"
+              className="source-link"
+            >
+              Open FPL Power Tracker
+            </a>
+          )}
+        </section>
+        <section className="drawer-section" aria-labelledby="supporting-utility-heading">
+          <h3 id="supporting-utility-heading">Assets and transit awareness</h3>
+          <RecordList
+            records={supportingRecords}
+            empty="No current stormwater-asset or transit records were returned."
+            limit={12}
+          />
+        </section>
+      </DrawerBody>
+    </Drawer>
+  )
+}
+
+function ShelterDrawer({
+  open,
+  onOpenChange,
+  records,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  records: CanonicalRecord[]
+}) {
+  return (
+    <Drawer
+      type="overlay"
+      position="end"
+      size="large"
+      open={open}
+      onOpenChange={(_, data) => onOpenChange(data.open)}
+    >
+      <DrawerHeader>
+        <DrawerHeaderTitle
+          action={
+            <Button
+              appearance="subtle"
+              icon={<Dismiss24Regular />}
+              aria-label="Close shelter records"
+              onClick={() => onOpenChange(false)}
+            />
+          }
+        >
+          Shelter Records
+        </DrawerHeaderTitle>
+      </DrawerHeader>
+      <DrawerBody>
+        <p className="drawer-intro">
+          Open FEMA shelter records and Miami-Dade evacuation-center inventory for the operational
+          area.
+        </p>
+        <RecordList
+          records={records}
+          empty="No open shelter record was returned; this does not mean no shelters exist."
+          limit={20}
+        />
+      </DrawerBody>
+    </Drawer>
+  )
+}
+
+function HospitalDrawer({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Drawer
+      type="overlay"
+      position="end"
+      size="large"
+      open={open}
+      onOpenChange={(_, data) => onOpenChange(data.open)}
+    >
+      <DrawerHeader>
+        <DrawerHeaderTitle
+          action={
+            <Button
+              appearance="subtle"
+              icon={<Dismiss24Regular />}
+              aria-label="Close hospital details"
+              onClick={() => onOpenChange(false)}
+            />
+          }
+        >
+          Mount Sinai Medical Center
+        </DrawerHeaderTitle>
+      </DrawerHeader>
+      <DrawerBody>
+        <div className="hospital-identity">
+          <strong>4300 Alton Road, Miami Beach, FL 33140</strong>
+          <span>Emergency Center open 24 hours, seven days a week</span>
+          <span>Main 305-674-2121 · Emergency Room 305-674-2200</span>
+        </div>
+        <dl className="hospital-spec-grid">
+          <div>
+            <dt>Licensed capacity</dt>
+            <dd>664 licensed beds</dd>
+          </div>
+          <div>
+            <dt>Emergency department</dt>
+            <dd>Only emergency department in Miami Beach · 56 treatment rooms</dd>
+          </div>
+          <div>
+            <dt>General services</dt>
+            <dd>Adult · pediatric · behavioral health</dd>
+          </div>
+          <div>
+            <dt>Obstetrics</dt>
+            <dd>General and high-risk obstetrics after 20 weeks</dd>
+          </div>
+          <div>
+            <dt>Stroke</dt>
+            <dd>Comprehensive Stroke Center</dd>
+          </div>
+          <div>
+            <dt>Cardiac</dt>
+            <dd>STEMI Center</dd>
+          </div>
+          <div>
+            <dt>Special capabilities</dt>
+            <dd>HAZMAT and radiological capable · heliport</dd>
+          </div>
+          <div>
+            <dt>Mass-casualty capacity</dt>
+            <dd>MCI capacity: 8 red · 15 yellow · 20 green</dd>
+          </div>
+          <div>
+            <dt>Trauma center</dt>
+            <dd>Not listed as provided in the Miami-Dade facilities table</dd>
+          </div>
+        </dl>
+        <div className="reference-links" aria-label="Mount Sinai specification sources">
+          <a
+            href="https://mdsceh.miamidade.gov/mobi/moms/mdfr_moms_03092026.pdf"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Miami-Dade facility capabilities
+          </a>
+          <a href="https://www.msmc.com/location/miami-beach/" target="_blank" rel="noreferrer">
+            Mount Sinai Miami Beach
+          </a>
+          <a
+            href="https://quality.healthfinder.fl.gov/Facility-Provider/Profile/?LID=9855"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Florida licensed-facility profile
+          </a>
+        </div>
+      </DrawerBody>
+    </Drawer>
+  )
+}
+
 function SettingsDrawer() {
   const open = useDashboardStore((state) => state.settingsOpen)
   const setOpen = useDashboardStore((state) => state.setSettingsOpen)
@@ -717,6 +942,8 @@ function SettingsDrawer() {
 function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
   const selectRecord = useDashboardStore((state) => state.selectRecord)
   const sourceText = typeof record?.payload.text === 'string' ? record.payload.text : null
+  const trafficCameraImage =
+    record?.category === 'traffic_camera' ? payloadText(record, 'IMAGE') : null
   const units = record ? advisoryUnits(record) : []
   const payloadEntries = record
     ? Object.entries(record.payload)
@@ -764,6 +991,14 @@ function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
               <div className="degraded-banner">
                 Showing cached information. {record.stale_reason ?? 'Source is stale.'}
               </div>
+            )}
+            {trafficCameraImage?.startsWith('https://') && (
+              <figure className="traffic-camera-preview">
+                <img src={trafficCameraImage} alt={`Live FL511 view: ${record.title}`} />
+                <figcaption>
+                  FL511 camera image · dashboard record retrieved {localTime(record.retrieved_at)}
+                </figcaption>
+              </figure>
             )}
             <dl className="record-details">
               <div>
@@ -838,6 +1073,9 @@ function DetailDrawer({record}: {record: CanonicalRecord | undefined}) {
 export function Dashboard() {
   const query = useDashboard()
   const data = query.data
+  const [overviewDrawer, setOverviewDrawer] = useState<'power' | 'shelters' | 'hospital' | null>(
+    null,
+  )
   const density = useDashboardStore((state) => state.density)
   const selectedRecordId = useDashboardStore((state) => state.selectedRecordId)
   const setSourceOpen = useDashboardStore((state) => state.setSourceDrawerOpen)
@@ -863,6 +1101,40 @@ export function Dashboard() {
     () => [...recordsByCategory('stormwater_pump_asset'), ...recordsByCategory('transit')],
     [recordsByCategory],
   )
+  const shelterRecords = useMemo(
+    () => recordsByCategory('open_shelter', 'evacuation_center'),
+    [recordsByCategory],
+  )
+  const topKpis = useMemo(() => {
+    const operational = (data?.kpis ?? [])
+      .filter((kpi) => kpi.id !== 'sources')
+      .map((kpi) => (kpi.id === 'power' ? {...kpi, label: 'Power'} : kpi))
+    const demand =
+      powerGridRecords.find((record) => record.payload.metric_type === 'D') ?? powerGridRecords[0]
+    if (!operational.some((kpi) => kpi.id === 'power')) {
+      operational.push({
+        id: 'power',
+        label: 'Power',
+        value: powerMetricText(demand),
+        unavailable: powerMetricText(demand) === null,
+        source: 'EIA-930 · FPL regional; not local outage data',
+        updated_at: demand?.observed_at ?? demand?.retrieved_at ?? null,
+        detail_category: 'power_grid_status',
+      })
+    }
+    return [
+      ...operational,
+      {
+        id: 'hospital',
+        label: 'Local Hospital',
+        value: 'Mount Sinai Medical Center',
+        unavailable: false,
+        source: 'Miami-Dade EMS facility profile',
+        updated_at: null,
+        detail_category: 'hospital',
+      },
+    ]
+  }, [data?.kpis, powerGridRecords])
   const unavailableCritical = useMemo(
     () => data?.health_summary.unavailable_critical ?? [],
     [data?.health_summary.unavailable_critical],
@@ -900,16 +1172,11 @@ export function Dashboard() {
             <Clock />
             <span>Last dashboard refresh: {localTime(data?.metadata.generated_at)}</span>
           </div>
-          <StatusPill state={sourceState} />
-          <Tooltip content="Dashboard data-source health" relationship="label">
-            <Button
-              className="header-icon-button"
-              appearance="subtle"
-              icon={<Database24Regular />}
-              aria-label="Open dashboard data-source health"
-              onClick={() => setSourceOpen(true)}
-            />
-          </Tooltip>
+          <StatusPill
+            state={sourceState}
+            ariaLabel={`Open dashboard health: ${sourceStateLabel(sourceState)}`}
+            onClick={() => setSourceOpen(true)}
+          />
           <Tooltip content="Full-screen kiosk view" relationship="label">
             <Button
               className="header-icon-button fullscreen-button"
@@ -945,12 +1212,24 @@ export function Dashboard() {
 
       <main id="main-content" className="dashboard-content">
         <section className="kpi-row" aria-label="Current operational indicators">
-          {(data?.kpis ?? []).map((kpi) => (
+          {topKpis.map((kpi) => (
             <button
               type="button"
               className={`kpi-tile kpi-${kpi.id}`}
               key={kpi.id}
               onClick={() => {
+                if (kpi.id === 'power') {
+                  setOverviewDrawer('power')
+                  return
+                }
+                if (kpi.id === 'shelters') {
+                  setOverviewDrawer('shelters')
+                  return
+                }
+                if (kpi.id === 'hospital') {
+                  setOverviewDrawer('hospital')
+                  return
+                }
                 const record = data?.records.find((item) => item.category === kpi.detail_category)
                 if (record) useDashboardStore.getState().selectRecord(record.id)
               }}
@@ -958,7 +1237,8 @@ export function Dashboard() {
               <span>{kpi.label}</span>
               <strong>{kpi.unavailable ? 'Not available' : valueText(kpi.value)}</strong>
               <small>
-                {kpi.source} · {kpi.updated_at ? localTime(kpi.updated_at) : 'Update unavailable'}
+                {kpi.source}
+                {kpi.updated_at ? ` · ${localTime(kpi.updated_at)}` : ''}
               </small>
             </button>
           ))}
@@ -1012,88 +1292,24 @@ export function Dashboard() {
           >
             <NoticeRecordList records={recordsByCategory('official_notice')} />
           </Panel>
-          <Panel title="Shelter & Facility Information" className="facilities-panel">
-            <div className="split-panel">
-              <div>
-                <h3>Open Shelter Records</h3>
-                <RecordList
-                  records={recordsByCategory('open_shelter')}
-                  empty="No records returned — this does not mean no shelters exist"
-                  limit={2}
-                />
-              </div>
-              <div>
-                <h3>Hospital & Hotel Locations</h3>
-                <RecordList
-                  records={recordsByCategory('hospital', 'hotel')}
-                  empty="Status not available from current public sources"
-                  limit={2}
-                />
-              </div>
-            </div>
-          </Panel>
-          <Panel title="Power, Assets & Transit Awareness" className="utility-panel">
-            <PowerGridStatus records={powerGridRecords} />
-            {supportingUtilityRecords.length > 0 ? (
-              <RecordList
-                records={supportingUtilityRecords}
-                empty="Status not available from current public sources"
-                limit={3}
-              />
-            ) : (
-              powerGridRecords.length === 0 && (
-                <div className="honest-empty">Status not available from current public sources</div>
-              )
-            )}
-          </Panel>
-          <Panel
-            title="Dashboard Data-Source Health"
-            className="health-panel"
-            subtitle={data ? `${data.health_summary.all_total} configured sources` : 'Not reported'}
-          >
-            <div className="health-summary">
-              <div>
-                <strong>
-                  {data
-                    ? `${data.health_summary.critical_healthy}/${data.health_summary.critical_total}`
-                    : '—'}
-                </strong>
-                <span>critical feeds</span>
-              </div>
-              <div>
-                <strong>
-                  {data
-                    ? `${data.health_summary.all_healthy}/${data.health_summary.all_total}`
-                    : '—'}
-                </strong>
-                <span>all sources</span>
-              </div>
-              <div>
-                <strong>
-                  {data?.source_health.filter((source) =>
-                    ['delayed', 'stale'].includes(source.state),
-                  ).length ?? 0}
-                </strong>
-                <span>delayed / stale</span>
-              </div>
-              <div>
-                <strong>
-                  {data?.source_health.filter((source) =>
-                    ['unavailable', 'invalid_response', 'scraper_layout_changed'].includes(
-                      source.state,
-                    ),
-                  ).length ?? 0}
-                </strong>
-                <span>unavailable</span>
-              </div>
-              <Button appearance="subtle" onClick={() => setSourceOpen(true)}>
-                Review every source
-              </Button>
-            </div>
-          </Panel>
         </div>
       </main>
-      <SourceDrawer health={data?.source_health ?? []} />
+      <SourceDrawer health={data?.source_health ?? []} summary={data?.health_summary} />
+      <PowerDrawer
+        open={overviewDrawer === 'power'}
+        onOpenChange={(open) => setOverviewDrawer(open ? 'power' : null)}
+        powerRecords={powerGridRecords}
+        supportingRecords={supportingUtilityRecords}
+      />
+      <ShelterDrawer
+        open={overviewDrawer === 'shelters'}
+        onOpenChange={(open) => setOverviewDrawer(open ? 'shelters' : null)}
+        records={shelterRecords}
+      />
+      <HospitalDrawer
+        open={overviewDrawer === 'hospital'}
+        onOpenChange={(open) => setOverviewDrawer(open ? 'hospital' : null)}
+      />
       <SettingsDrawer />
       <DetailDrawer record={selected} />
     </div>
