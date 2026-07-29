@@ -113,7 +113,7 @@ async def request_context(request: Request, call_next: RequestResponseEndpoint) 
         "script-src 'self'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "img-src 'self' data: blob: https://tile.openstreetmap.org "
-        "https://nowcoast.noaa.gov; "
+        "https://nowcoast.noaa.gov https://images-dis.divas.cloud; "
         "font-src 'self' https://fonts.gstatic.com; "
         "connect-src 'self'; "
         "frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'"
