@@ -76,9 +76,7 @@ def test_registry_covers_required_operational_categories() -> None:
 
 def test_fl511_traffic_cameras_use_the_public_official_feature_layer() -> None:
     source = next(
-        source
-        for source in source_registry()
-        if source.source_id == "fdem-fl511-traffic-cameras"
+        source for source in source_registry() if source.source_id == "fdem-fl511-traffic-cameras"
     )
     query = parse_qs(urlparse(source.url).query)
 
