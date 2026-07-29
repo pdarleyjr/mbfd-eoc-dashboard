@@ -26,6 +26,7 @@ describe('dashboard settings store', () => {
     expect(state.layers.boundaries).toBe(true)
     expect(state.layers.pulsepoint).toBe(true)
     expect(state.layers.traffic).toBe(true)
+    expect(state.layers.trafficFlow).toBe(true)
     expect(state.layers.laneClosures).toBe(true)
     expect(state.layers.facilities).toBe(false)
     expect(state.layers.transit).toBe(false)

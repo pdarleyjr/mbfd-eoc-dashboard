@@ -36,6 +36,7 @@ it('excludes unknown record categories instead of assigning them to traffic', ()
   const visible = filterVisibleRecords(records, {
     pulsepoint: true,
     traffic: true,
+    trafficFlow: true,
     trafficCameras: true,
     laneClosures: true,
     radar: false,
@@ -59,6 +60,7 @@ it('exposes official FL511 traffic cameras only when their map layer is enabled'
   const layers = {
     pulsepoint: true,
     traffic: true,
+    trafficFlow: true,
     trafficCameras: false,
     laneClosures: true,
     radar: false,

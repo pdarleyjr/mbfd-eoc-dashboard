@@ -429,6 +429,58 @@ input:focus-visible,
   margin-top: 0.1rem;
 }
 
+.map-title-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.traffic-speed-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.52rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.traffic-speed-legend > strong {
+  color: var(--navy-900);
+  font-size: 0.56rem;
+}
+
+.traffic-speed-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.14rem;
+}
+
+.traffic-speed-legend i {
+  width: 0.72rem;
+  height: 0.32rem;
+  display: inline-block;
+  border-radius: 1px;
+}
+
+.traffic-speed-stopped {
+  background: repeating-linear-gradient(90deg, #111 0 0.28rem, transparent 0.28rem 0.4rem);
+}
+
+.traffic-speed-slow {
+  background: #4d0001;
+}
+
+.traffic-speed-moderate {
+  background: #f4ff24;
+}
+
+.traffic-speed-fast {
+  background: #249d74;
+}
+
 .authority-legend {
   display: flex;
   align-items: center;
@@ -536,6 +588,13 @@ input:focus-visible,
 
 .leaflet-record-marker.marker-advisory > span {
   background: var(--danger);
+}
+
+.leaflet-record-marker.marker-pulsepoint > span {
+  width: 2.15rem;
+  height: 2.15rem;
+  font-size: 0.54rem;
+  letter-spacing: -0.02em;
 }
 
 .leaflet-record-marker.marker-supplemental > span {
@@ -682,7 +741,7 @@ input:focus-visible,
   position: absolute;
   z-index: 4;
   right: 0.55rem;
-  bottom: 2.35rem;
+  bottom: 2rem;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1671,22 +1730,20 @@ input:focus-visible,
   font-size: 0.5rem;
 }
 
+.radar-control-dock {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: oklch(98.5% 0.008 250);
+}
+
 .radar-controls {
-  position: absolute;
-  z-index: 6;
-  right: 4rem;
-  bottom: 6rem;
-  width: min(30rem, calc(100% - 15.4rem));
+  width: 100%;
   display: grid;
-  grid-template-columns: auto minmax(7rem, 1fr) auto;
+  grid-template-columns: auto minmax(7rem, 1fr) auto minmax(9rem, auto);
   align-items: center;
   gap: 0.3rem 0.55rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.5rem;
-  background: oklch(99.5% 0.005 250 / 95%);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(8px);
+  padding: 0.32rem 0.7rem;
+  background: transparent;
 }
 
 .radar-playback-actions,
@@ -1730,11 +1787,13 @@ input:focus-visible,
 }
 
 .radar-status {
-  grid-column: 1 / -1;
   margin: 0;
+  overflow: hidden;
   color: var(--navy-900);
   font-size: 0.56rem;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .radar-status.is-delayed {
@@ -2122,6 +2181,14 @@ input:focus-visible,
       'pulse traffic notices' minmax(0, 1fr)
       / minmax(0, 1fr) minmax(0, 1fr) minmax(15rem, 0.9fr);
   }
+
+  .radar-controls {
+    grid-template-columns: auto minmax(7rem, 1fr) auto;
+  }
+
+  .radar-status {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 47.99rem) {
@@ -2206,6 +2273,16 @@ input:focus-visible,
   .map-title-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .map-title-actions {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .traffic-speed-legend {
+    flex-wrap: wrap;
   }
 
   .authority-legend {

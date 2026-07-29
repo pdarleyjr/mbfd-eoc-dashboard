@@ -285,7 +285,7 @@ describe('Dashboard', () => {
     renderDashboard()
 
     const pulseCall = screen.getByRole('button', {
-      name: /Medical Emergency.*ME.*COLLINS AVE/i,
+      name: /Medical Emergency.*MED.*COLLINS AVE/i,
     })
     expect(within(pulseCall).getByText('Active')).toBeVisible()
     expect(within(pulseCall).getByText('Live')).toBeVisible()

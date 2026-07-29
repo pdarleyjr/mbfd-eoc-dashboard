@@ -19,6 +19,7 @@ import {
 import {lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {useDashboard} from '../hooks/useDashboard'
 import {formatAge, localTime, recordTime, sourceStateLabel, valueText} from '../lib/format'
+import {pulsePointCallLabel} from '../lib/pulsepoint'
 import {useDashboardStore} from '../store/dashboardStore'
 import type {CanonicalRecord, DashboardSummary} from '../types'
 import {StatusPill} from './StatusPill'
@@ -174,14 +175,13 @@ function PulsePointList({records, limit = 5}: {records: CanonicalRecord[]; limit
         const units = advisoryUnits(record)
         const active = record.payload.state === 'active'
         const hasCoordinates = record.geography.type === 'Point'
+        const callTypeLabel = pulsePointCallLabel(record.payload.call_type_code)
         return (
           <li key={record.id}>
             <button type="button" onClick={() => selectRecord(record.id)}>
               <span className="operational-card-heading">
                 <strong>{record.title}</strong>
-                {payloadText(record, 'call_type_code') && (
-                  <span className="call-code">{payloadText(record, 'call_type_code')}</span>
-                )}
+                {callTypeLabel && <span className="call-code">{callTypeLabel}</span>}
                 <span className={active ? 'state-tag state-active' : 'state-tag'}>
                   {active ? 'Active' : 'Recent'}
                 </span>

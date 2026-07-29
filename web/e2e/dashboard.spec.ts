@@ -417,6 +417,19 @@ test.beforeEach(async ({page}) => {
       })
     })
   }
+  if (process.env.EOC_TEST_REAL_TRAFFIC !== '1') {
+    await page.route('https://tiles.ibi511.com/Geoservice/GetTrafficTile?**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        headers: {'Cache-Control': 'public, max-age=60'},
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
+          'base64',
+        ),
+      })
+    })
+  }
   await page.route('**/api/v1/dashboard/summary', async (route) => {
     await route.fulfill({
       status: 200,
@@ -500,7 +513,7 @@ test('shows operational record content and synchronizes cards with map selection
   const pulsePanel = page.locator('.pulsepoint-panel')
   const pulseCall = pulsePanel.getByRole('button', {name: /Medical Emergency/i})
   await expect(pulseCall).toBeVisible()
-  await expect(pulseCall).toContainText('ME')
+  await expect(pulseCall).toContainText('MED')
   await expect(pulseCall).toContainText('COLLINS AVE, MIAMI BEACH, FL')
   await expect(pulseCall).toContainText('CPT5')
   await expect(pulseCall).toContainText('On Scene')
@@ -695,6 +708,7 @@ test('switches map modes, applies radar defaults, and starts animation only on r
   expect(radarRequests).toHaveLength(0)
 
   await page.getByRole('tab', {name: 'Radar'}).click()
+  await expect(page.getByLabel('Radar playback controls')).toBeVisible()
   await page.getByRole('button', {name: 'Layer'}).click()
   await expect(page.getByRole('checkbox', {name: 'MRMS radar'})).toBeChecked()
   await expect(page.getByRole('checkbox', {name: 'Weather alerts'})).toBeChecked()
@@ -725,7 +739,7 @@ test('switches map modes, applies radar defaults, and starts animation only on r
   }
 })
 
-test('collapses every over-map control into the Layer button', async ({page}) => {
+test('collapses over-map controls without hiding docked radar playback', async ({page}) => {
   await page.goto('/')
 
   const layerButton = page.getByRole('button', {name: 'Layer'})
@@ -736,7 +750,17 @@ test('collapses every over-map control into the Layer button', async ({page}) =>
   await expect(page.locator('.leaflet-control-zoom')).toBeHidden()
 
   await page.getByRole('tab', {name: 'Radar'}).click()
-  await expect(page.getByRole('button', {name: 'Play radar animation'})).toHaveCount(0)
+  await expect(page.getByRole('button', {name: 'Play radar animation'})).toBeVisible()
+  const radarDock = page.locator('.radar-control-dock')
+  const mapStage = page.locator('.map-stage')
+  await expect(radarDock).toBeVisible()
+  const radarDockBox = await radarDock.boundingBox()
+  const mapStageBox = await mapStage.boundingBox()
+  expect(radarDockBox).not.toBeNull()
+  expect(mapStageBox).not.toBeNull()
+  expect((radarDockBox?.y ?? 0) + (radarDockBox?.height ?? 0)).toBeLessThanOrEqual(
+    (mapStageBox?.y ?? 0) + 1,
+  )
 
   await layerButton.click()
   await expect(layerButton).toHaveAttribute('aria-expanded', 'true')
@@ -780,7 +804,38 @@ test('collapses every over-map control into the Layer button', async ({page}) =>
   await expect(page.getByLabel('Map layers')).toHaveCount(0)
   await expect(page.getByLabel('Causeway quick focus')).toHaveCount(0)
   await expect(page.locator('.leaflet-control-zoom')).toBeHidden()
-  await expect(page.getByRole('button', {name: 'Play radar animation'})).toHaveCount(0)
+  await expect(page.getByRole('button', {name: 'Play radar animation'})).toBeVisible()
+})
+
+test('shows the official FL511 colored traffic-speed overlay by default', async ({page}) => {
+  const trafficTileRequests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().startsWith('https://tiles.ibi511.com/Geoservice/GetTrafficTile?')) {
+      trafficTileRequests.push(request.url())
+    }
+  })
+
+  await page.goto('/')
+
+  const legend = page.getByLabel('FL511 traffic speed legend')
+  await expect(legend).toBeVisible()
+  await expect(legend).toContainText('Fast')
+  await expect(legend).toContainText('Slow')
+  await expect(legend).toContainText('Stopped')
+  await expect.poll(() => trafficTileRequests.length).toBeGreaterThan(0)
+  expect(
+    trafficTileRequests.every((url) =>
+      /^https:\/\/tiles\.ibi511\.com\/Geoservice\/GetTrafficTile\?x=\d+&y=\d+&z=\d+&t=\d+$/.test(
+        url,
+      ),
+    ),
+  ).toBe(true)
+
+  await page.getByRole('button', {name: 'Layer'}).click()
+  const trafficSpeeds = page.getByRole('checkbox', {name: 'FL511 traffic speeds'})
+  await expect(trafficSpeeds).toBeChecked()
+  await trafficSpeeds.uncheck()
+  await expect(legend).toBeHidden()
 })
 
 test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
@@ -817,6 +872,7 @@ test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
 
 test('does not overlap dashboard panels or overflow horizontally', async ({page}) => {
   await page.goto('/')
+  await expect(page.getByRole('region', {name: 'Miami Beach operational map'})).toBeVisible()
   await expect(page.locator('.weather-panel')).toBeVisible()
   const layout = await page.evaluate(() => {
     const panels = Array.from(document.querySelectorAll<HTMLElement>('.panel,.kpi-tile')).map(

@@ -7,6 +7,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {useRadarStatus} from '../hooks/useRadarStatus'
+import {pulsePointCallLabel} from '../lib/pulsepoint'
 import {
   useDashboardStore,
   type LayerKey,
@@ -24,7 +25,16 @@ configureLeafletDefaultIconAssets()
 const mapTileUrl =
   (import.meta.env.VITE_MAP_TILE_URL as string | undefined)?.trim() ||
   'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const trafficTileUrl =
+  (import.meta.env.VITE_TRAFFIC_TILE_URL as string | undefined)?.trim() ||
+  'https://tiles.ibi511.com/Geoservice/GetTrafficTile?x={x}&y={y}&z={z}'
 const kioskResetMinutes = Math.max(1, Number(import.meta.env.VITE_RADAR_KIOSK_RESET_MINUTES ?? 10))
+
+function currentTrafficTileUrl(): string {
+  const separator = trafficTileUrl.includes('?') ? '&' : '?'
+  const minuteEpochSeconds = Math.floor(Date.now() / 60_000) * 60
+  return `${trafficTileUrl}${separator}t=${minuteEpochSeconds}`
+}
 
 const modeLabels: ReadonlyArray<[MapMode, string]> = [
   ['operations', 'Operations'],
@@ -42,6 +52,7 @@ const layerGroups: ReadonlyArray<{
     layers: [
       ['pulsepoint', 'PulsePoint advisory calls'],
       ['traffic', 'Traffic incidents'],
+      ['trafficFlow', 'FL511 traffic speeds'],
       ['trafficCameras', 'FL511 traffic cameras'],
       ['laneClosures', 'Lane closures'],
     ],
@@ -95,7 +106,8 @@ function pointOf(record: CanonicalRecord): {lat: number; lng: number} | null {
 }
 
 function markerGlyph(record: CanonicalRecord): string {
-  if (record.category === 'pulsepoint_call') return '!'
+  if (record.category === 'pulsepoint_call')
+    return pulsePointCallLabel(record.payload.call_type_code) ?? '!'
   if (record.category === 'traffic_camera') return 'C'
   if (record.category === 'open_shelter' || record.category === 'evacuation_center') return 'S'
   if (record.category === 'hospital') return 'H'
@@ -175,21 +187,37 @@ function QuickFocusControls({
   )
 }
 
+function TrafficSpeedLegend() {
+  return (
+    <div className="traffic-speed-legend" aria-label="FL511 traffic speed legend">
+      <strong>FL511 speeds</strong>
+      <span>
+        <i className="traffic-speed-stopped" aria-hidden />
+        Stopped
+      </span>
+      <span>
+        <i className="traffic-speed-slow" aria-hidden />
+        Slow
+      </span>
+      <span>
+        <i className="traffic-speed-moderate" aria-hidden />
+        Moderate
+      </span>
+      <span>
+        <i className="traffic-speed-fast" aria-hidden />
+        Fast
+      </span>
+    </div>
+  )
+}
+
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
     : []
 }
 
-function RadarLayer({
-  map,
-  enabled,
-  controlsVisible,
-}: {
-  map: L.Map | null
-  enabled: boolean
-  controlsVisible: boolean
-}) {
+function RadarLayer({map, enabled}: {map: L.Map | null; enabled: boolean}) {
   const query = useRadarStatus(enabled)
   const record = query.data?.records[0]
   const frames = useMemo(() => stringArray(record?.payload.frame_times), [record])
@@ -292,7 +320,7 @@ function RadarLayer({
     }
   }, [enabled, latestFrame, map, nextFrame, opacity, record, selectedFrame])
 
-  if (!enabled || !controlsVisible) return null
+  if (!enabled) return null
   return (
     <RadarControls
       selectedFrame={selectedFrame ?? latestFrame}
@@ -332,12 +360,16 @@ function LeafletMap({
   onSelect,
   mapMode,
   controlsExpanded,
+  trafficFlowEnabled,
+  onMapReady,
 }: {
   records: CanonicalRecord[]
   selectedRecordId: string | null
   onSelect: (id: string) => void
   mapMode: MapMode
   controlsExpanded: boolean
+  trafficFlowEnabled: boolean
+  onMapReady: (map: L.Map | null) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<L.Map | null>(null)
@@ -353,6 +385,7 @@ function LeafletMap({
       preferCanvas: false,
       zoomControl: false,
     }).setView([25.7907, -80.13], 12)
+    instance.createPane('trafficPane').style.zIndex = '240'
     instance.createPane('radarPane').style.zIndex = '250'
     instance.createPane('shapePane').style.zIndex = '410'
     instance.createPane('featurePane').style.zIndex = '430'
@@ -374,6 +407,7 @@ function LeafletMap({
     window.addEventListener('resize', resize)
     document.addEventListener('fullscreenchange', resize)
     setMap(instance)
+    onMapReady(instance)
     resize()
     return () => {
       observer.disconnect()
@@ -382,8 +416,29 @@ function LeafletMap({
       tileLayer.off()
       instance.remove()
       setMap(null)
+      onMapReady(null)
     }
-  }, [])
+  }, [onMapReady])
+
+  useEffect(() => {
+    if (!map || !trafficFlowEnabled) return
+    const trafficLayer = L.tileLayer(currentTrafficTileUrl(), {
+      pane: 'trafficPane',
+      minZoom: 7,
+      maxZoom: 19,
+      minNativeZoom: 13,
+      maxNativeZoom: 16,
+      opacity: 0.92,
+      attribution: '<a href="https://fl511.com/">FL511 traffic speeds</a>',
+    }).addTo(map)
+    const refresh = window.setInterval(() => {
+      trafficLayer.setUrl(currentTrafficTileUrl())
+    }, 60_000)
+    return () => {
+      window.clearInterval(refresh)
+      trafficLayer.remove()
+    }
+  }, [map, trafficFlowEnabled])
 
   useEffect(() => {
     if (!map) return
@@ -417,8 +472,8 @@ function LeafletMap({
           pane: 'featurePane',
           icon: L.divIcon({
             className: `leaflet-record-marker marker-${record.authority_level}${
-              selected ? ' is-selected' : ''
-            }`,
+              record.category === 'pulsepoint_call' ? ' marker-pulsepoint' : ''
+            }${selected ? ' is-selected' : ''}`,
             html: `<span aria-hidden="true"><b>${markerGlyph(record)}</b></span>`,
             iconAnchor: [22, 42],
             iconSize: [44, 44],
@@ -486,7 +541,6 @@ function LeafletMap({
             : 'Loading configured basemap…'}
         </div>
       )}
-      {mapMode === 'radar' && <RadarLayer map={map} enabled controlsVisible={controlsExpanded} />}
       {controlsExpanded && (
         <QuickFocusControls onFocus={(lat, lng, zoom) => map?.setView([lat, lng], zoom)} />
       )}
@@ -503,6 +557,7 @@ export function OperationalMap({records}: {records: CanonicalRecord[]}) {
   const selectRecord = useDashboardStore((state) => state.selectRecord)
   const selectedRecordId = useDashboardStore((state) => state.selectedRecordId)
   const [controlsExpanded, setControlsExpanded] = useState(false)
+  const [radarMap, setRadarMap] = useState<L.Map | null>(null)
   const visible = useMemo(() => filterVisibleRecords(records, layers), [layers, records])
 
   return (
@@ -512,20 +567,28 @@ export function OperationalMap({records}: {records: CanonicalRecord[]}) {
           <h2 id="operational-map-heading">Operational Map</h2>
           <p>Miami Beach, access corridors, and official hazard products</p>
         </div>
-        <TabList
-          className="map-mode-tabs"
-          selectedValue={mapMode}
-          onTabSelect={(_, data) => setMapMode(data.value as MapMode)}
-          aria-label="Map mode"
-          size="small"
-        >
-          {modeLabels.map(([value, label]) => (
-            <Tab key={value} value={value}>
-              {label}
-            </Tab>
-          ))}
-        </TabList>
+        <div className="map-title-actions">
+          {layers.trafficFlow && <TrafficSpeedLegend />}
+          <TabList
+            className="map-mode-tabs"
+            selectedValue={mapMode}
+            onTabSelect={(_, data) => setMapMode(data.value as MapMode)}
+            aria-label="Map mode"
+            size="small"
+          >
+            {modeLabels.map(([value, label]) => (
+              <Tab key={value} value={value}>
+                {label}
+              </Tab>
+            ))}
+          </TabList>
+        </div>
       </div>
+      {mapMode === 'radar' && (
+        <div className="radar-control-dock">
+          <RadarLayer map={radarMap} enabled />
+        </div>
+      )}
       <div className="map-stage">
         <Button
           className="layer-toggle-button"
@@ -582,6 +645,8 @@ export function OperationalMap({records}: {records: CanonicalRecord[]}) {
           onSelect={selectRecord}
           mapMode={mapMode}
           controlsExpanded={controlsExpanded}
+          trafficFlowEnabled={layers.trafficFlow}
+          onMapReady={setRadarMap}
         />
       </div>
     </section>
