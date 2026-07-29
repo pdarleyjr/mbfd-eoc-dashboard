@@ -1591,7 +1591,7 @@ input:focus-visible,
 }
 
 .weather-decision-grid {
-  min-height: 5.75rem;
+  min-height: 0;
   flex: 1 1 6.25rem;
   display: grid;
   grid-template-columns: 1.25fr 0.9fr;
