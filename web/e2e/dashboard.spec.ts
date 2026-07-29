@@ -214,6 +214,20 @@ const powerRecord = {
   },
 }
 
+const utilityAssetRecord = {
+  ...record,
+  id: 'stormwater-pump-5072',
+  source_id: 'miami-beach-stormwater-pumps',
+  source_name: 'Miami Beach Stormwater Pump Stations',
+  source_record_id: 'STM_PMP_5072',
+  title: 'STM_PMP_5072',
+  category: 'stormwater_pump_asset',
+  stale: false,
+  stale_reason: null,
+  geography: {},
+  payload: {},
+}
+
 const summary = {
   metadata: {
     generated_at: now,
@@ -264,6 +278,7 @@ const summary = {
     hotelFacilityRecord,
     noticeRecord,
     powerRecord,
+    utilityAssetRecord,
   ],
   source_health: [
     {
@@ -841,6 +856,20 @@ test('keeps every bottom panel reachable without clipping record text', async ({
     if (facilityBounds && recordBounds) {
       expect(recordBounds.y + recordBounds.height).toBeLessThanOrEqual(
         facilityBounds.y + facilityBounds.height + 1,
+      )
+    }
+  }
+
+  const utilityPanel = page.locator('.utility-panel')
+  const finalUtility = utilityPanel.locator('.record-list button').last()
+  if ((await finalUtility.count()) > 0) {
+    const utilityBounds = await utilityPanel.boundingBox()
+    const recordBounds = await finalUtility.boundingBox()
+    expect(utilityBounds).not.toBeNull()
+    expect(recordBounds).not.toBeNull()
+    if (utilityBounds && recordBounds) {
+      expect(recordBounds.y + recordBounds.height).toBeLessThanOrEqual(
+        utilityBounds.y + utilityBounds.height + 1,
       )
     }
   }
