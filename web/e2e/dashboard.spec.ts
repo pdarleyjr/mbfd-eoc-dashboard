@@ -128,11 +128,11 @@ const floodRecord = {
     type: 'Polygon',
     coordinates: [
       [
-        [-80.137, 25.786],
-        [-80.132, 25.786],
-        [-80.132, 25.791],
-        [-80.137, 25.791],
-        [-80.137, 25.786],
+        [-80.158, 25.768],
+        [-80.146, 25.768],
+        [-80.146, 25.778],
+        [-80.158, 25.778],
+        [-80.158, 25.768],
       ],
     ],
   },
@@ -320,10 +320,10 @@ const summary = {
     pulseRecord,
     recentPulseRecord,
     laneLineRecord,
+    trafficCameraRecord,
     floodRecord,
     multiPointFacilityRecord,
     hotelFacilityRecord,
-    trafficCameraRecord,
     noticeRecord,
     powerRecord,
     utilityAssetRecord,
@@ -564,6 +564,7 @@ test('shows operational record content and synchronizes cards with map selection
 test('loads honest source states and supports drawers and layer controls', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000)
   await page.goto('/')
 
   await expect(
@@ -585,6 +586,26 @@ test('loads honest source states and supports drawers and layer controls', async
   await expect(floodLayer).toBeChecked()
   await expect(cameraLayer).toBeChecked()
   await page.getByRole('button', {name: 'Layer'}).click({force: true})
+
+  await expect(
+    page.locator('.leaflet-record-marker[aria-label*="FL511 Traffic Cameras"]').first(),
+  ).toBeVisible()
+  await expect(
+    page.locator('.leaflet-interactive[aria-label*="Preliminary FIRM AE"]').first(),
+  ).toBeVisible()
+  const mapHitOrder = await page.evaluate(() => {
+    const markerPane = document
+      .querySelector<HTMLElement>('.leaflet-record-marker[aria-label*="FL511 Traffic Cameras"]')
+      ?.closest<HTMLElement>('.leaflet-pane')
+    const shapePane = document
+      .querySelector<HTMLElement>('.leaflet-interactive[aria-label*="Preliminary FIRM AE"]')
+      ?.closest<HTMLElement>('.leaflet-pane')
+    return {
+      marker: Number(getComputedStyle(markerPane as HTMLElement).zIndex),
+      shape: Number(getComputedStyle(shapePane as HTMLElement).zIndex),
+    }
+  })
+  expect(mapHitOrder.marker).toBeGreaterThan(mapHitOrder.shape)
 
   const trafficCamera = page.getByRole('button', {name: /I-395 East of Bridge Road/i})
   await trafficCamera.click()

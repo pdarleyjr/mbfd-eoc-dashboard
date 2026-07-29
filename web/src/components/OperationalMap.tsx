@@ -119,7 +119,7 @@ function shapeStyle(record: CanonicalRecord, selected: boolean): L.PathOptions {
                 ? '#6f45a8'
                 : '#1769c2'
   return {
-    pane: 'featurePane',
+    pane: 'shapePane',
     color: strokeColor,
     weight: selected ? 6 : record.category === 'lane_closure' ? 4 : 2,
     opacity: 0.92,
@@ -354,7 +354,8 @@ function LeafletMap({
       zoomControl: false,
     }).setView([25.7907, -80.13], 12)
     instance.createPane('radarPane').style.zIndex = '250'
-    instance.createPane('featurePane').style.zIndex = '410'
+    instance.createPane('shapePane').style.zIndex = '410'
+    instance.createPane('featurePane').style.zIndex = '430'
     L.control.zoom({position: 'topright'}).addTo(instance)
     const tileLayer = L.tileLayer(mapTileUrl, {
       attribution:
@@ -442,7 +443,7 @@ function LeafletMap({
           geometry: record.geography as unknown as GeoJSON.Geometry,
         }
         const shape = L.geoJSON(feature, {
-          pane: 'featurePane',
+          pane: 'shapePane',
           style: () => shapeStyle(record, selected),
           onEachFeature: (_feature, layer) => {
             const select = () => onSelect(record.id)

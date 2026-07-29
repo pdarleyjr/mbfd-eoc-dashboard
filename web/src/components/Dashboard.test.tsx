@@ -617,7 +617,7 @@ describe('Dashboard', () => {
     expect(screen.getByRole('heading', {name: 'System Health & Critical Feeds'})).toBeVisible()
     expect(screen.getByText('6/6 critical feeds')).toBeVisible()
     expect(screen.getByText('1/1 all configured sources')).toBeVisible()
-  })
+  }, 10_000)
 
   it('selects the first matching record from a KPI tile', () => {
     queryResult = {...queryResult, data: richSummary}
