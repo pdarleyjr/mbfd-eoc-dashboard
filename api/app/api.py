@@ -283,6 +283,18 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
     )
     health_summary = _source_health_summary(health)
 
+    def count_kpi_updated_at(
+        kpi_records: list[CanonicalRecord],
+        source_ids: set[str],
+    ) -> datetime | None:
+        record_updates = [item.retrieved_at for item in kpi_records]
+        source_updates = [
+            item.last_success
+            for item in health
+            if item.source_id in source_ids and item.last_success is not None
+        ]
+        return max((*record_updates, *source_updates), default=None)
+
     def kpi(
         identifier: str,
         label: str,
@@ -319,7 +331,7 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
             len(active_calls),
             "PulsePoint advisory",
             "pulsepoint_call",
-            max((item.retrieved_at for item in active_calls), default=None),
+            count_kpi_updated_at(active_calls, {"pulsepoint-x1012"}),
         ),
         kpi(
             "alerts",
@@ -327,7 +339,7 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
             len(alerts),
             "National Weather Service",
             "weather_alert",
-            max((item.retrieved_at for item in alerts), default=None),
+            count_kpi_updated_at(alerts, {"nws-alerts"}),
         ),
         kpi(
             "roads",
@@ -335,7 +347,19 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
             len(road),
             "Official public traffic sources",
             "traffic_incident",
-            max((item.retrieved_at for item in road), default=None),
+            count_kpi_updated_at(
+                road,
+                {
+                    "fdem-fhp-crashes",
+                    "fdem-fl511-crashes",
+                    "fdem-fl511-congestion",
+                    "fdem-fl511-construction",
+                    "fdem-fl511-other",
+                    "miami-beach-lane-closures",
+                    "miami-beach-traffic-advisories",
+                    "official-causeway-advisories",
+                },
+            ),
         ),
         kpi(
             "shelters",
@@ -343,7 +367,7 @@ async def dashboard_summary(session: Session) -> DashboardSummary:
             len(shelters),
             "FEMA Open Shelters",
             "open_shelter",
-            max((item.retrieved_at for item in shelters), default=None),
+            count_kpi_updated_at(shelters, {"fema-open-shelters"}),
         ),
         kpi(
             "power",

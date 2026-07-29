@@ -51,9 +51,11 @@ def make_record(
 
 def make_health(
     state: SourceHealthState = SourceHealthState.HEALTHY,
+    *,
+    source_id: str = "test-source",
 ) -> SourceHealth:
     return SourceHealth(
-        source_id="test-source",
+        source_id=source_id,
         source_name="Official Test Source",
         state=state,
         last_attempt=NOW,
@@ -156,6 +158,29 @@ async def test_dashboard_summary_counts_only_supported_metrics(
     source_health = next(item for item in summary.kpis if item.id == "sources")
     assert source_health.label == "Critical Feeds"
     assert source_health.source == "1/1 all configured sources healthy"
+
+
+async def test_dashboard_summary_uses_source_refresh_for_empty_count_kpis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeRepository.records = []
+    FakeRepository.health = [
+        make_health(source_id="pulsepoint-x1012"),
+        make_health(source_id="nws-alerts"),
+        make_health(source_id="fdem-fl511-crashes"),
+        make_health(source_id="fema-open-shelters"),
+    ]
+    monkeypatch.setattr(api, "Repository", FakeRepository)
+
+    summary = await api.dashboard_summary(object())
+
+    count_kpis = {
+        item.id: item
+        for item in summary.kpis
+        if item.id in {"pulsepoint", "alerts", "roads", "shelters"}
+    }
+    assert {item.value for item in count_kpis.values()} == {0}
+    assert all(item.updated_at == NOW for item in count_kpis.values())
 
 
 async def test_dashboard_summary_marks_power_unavailable(
