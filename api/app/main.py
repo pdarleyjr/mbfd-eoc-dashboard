@@ -214,6 +214,12 @@ class SpaStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope: Scope) -> Response:
         if scope["type"] != "http" or scope["method"] not in {"GET", "HEAD"}:
             return JSONResponse(status_code=404, content={"detail": "Not found"})
+        request_path = str(scope.get("path", ""))
+        if any(
+            request_path == prefix or request_path.startswith(f"{prefix}/")
+            for prefix in ("/api", "/health", "/metrics")
+        ):
+            return JSONResponse(status_code=404, content={"detail": "Not found"})
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:

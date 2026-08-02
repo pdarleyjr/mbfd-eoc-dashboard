@@ -850,6 +850,17 @@ test('keeps primary controls keyboard reachable', async ({page}, testInfo) => {
   expect(sourceHealthBox.width).toBeGreaterThanOrEqual(44)
   expect(sourceHealthBox.height).toBeGreaterThanOrEqual(44)
 
+  for (const label of ['Operations', 'Radar', 'Flooding', 'Tropical']) {
+    const modeBox = await page.getByRole('tab', {name: label, exact: true}).boundingBox()
+    expect(modeBox, `${label} map-mode control has no layout box`).not.toBeNull()
+    expect(modeBox?.width).toBeGreaterThanOrEqual(44)
+    expect(modeBox?.height).toBeGreaterThanOrEqual(44)
+  }
+  const radarButtonBox = await page.getByRole('button', {name: 'View Radar'}).boundingBox()
+  expect(radarButtonBox, 'View Radar control has no layout box').not.toBeNull()
+  expect(radarButtonBox?.width).toBeGreaterThanOrEqual(44)
+  expect(radarButtonBox?.height).toBeGreaterThanOrEqual(44)
+
   if (testInfo.project.name === 'tablet-landscape' || testInfo.project.name === 'webkit-1440') {
     // Touch emulation does not consistently synthesize hardware-Tab navigation.
     // Programmatic focus still proves the skip link remains focusable for paired keyboards.

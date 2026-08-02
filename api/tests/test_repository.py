@@ -92,12 +92,14 @@ class FakeSession:
         self.get_value = get_value
         self.count = count
         self.executed: list[Any] = []
+        self.scalar_statements: list[Any] = []
         self.commits = 0
 
     async def execute(self, statement: Any) -> None:
         self.executed.append(statement)
 
-    async def scalars(self, _statement: Any) -> ScalarRows:
+    async def scalars(self, statement: Any) -> ScalarRows:
+        self.scalar_statements.append(statement)
         return ScalarRows(self.scalar_sets.pop(0) if self.scalar_sets else [])
 
     async def get(self, _model: Any, _identity: str) -> Any:
@@ -139,6 +141,17 @@ async def test_successful_empty_response_retires_previous_rows() -> None:
     assert absent.stale is True
     assert absent.expires_at is not None
     assert session.commits == 1
+
+
+async def test_retirement_query_excludes_rows_that_are_already_expired() -> None:
+    session = FakeSession(scalar_sets=[[]])
+    repository = Repository(session)  # type: ignore[arg-type]
+
+    await repository.upsert_records("source", [], retire_missing=True)
+
+    statement = str(session.scalar_statements[0])
+    assert "canonical_records.expires_at IS NULL" in statement
+    assert "canonical_records.expires_at >" in statement
 
 
 async def test_read_records_and_source_health() -> None:
