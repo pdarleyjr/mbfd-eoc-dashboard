@@ -17,7 +17,7 @@ class PulsePointAdapter(Adapter):
     poll_interval_seconds = 15
     stale_threshold_seconds = 90
     timeout_seconds = 12
-    retire_missing = False
+    retire_missing = True
 
     def __init__(self) -> None:
         self.url = str(get_settings().pulsepoint_url)

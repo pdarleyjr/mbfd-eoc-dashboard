@@ -1673,7 +1673,7 @@ input:focus-visible,
 
 .map-mode-tabs [role='tab'] {
   min-width: 4rem;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   padding-inline: 0.55rem;
   font-size: 0.68rem;
 }
@@ -1880,7 +1880,7 @@ input:focus-visible,
 
 .weather-forecast button {
   align-self: flex-start;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   margin-top: 0.25rem;
 }
 

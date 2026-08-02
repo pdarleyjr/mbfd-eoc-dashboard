@@ -100,6 +100,7 @@ class FakeRepository:
         self.stale_reason: str | None = None
         self.has_records = has_records
         self.snapshots: list[tuple[object, ...]] = []
+        self.retired_record_ids: set[str] = set()
 
     async def save_snapshot(self, *args: object) -> None:
         self.snapshots.append(args)
@@ -112,6 +113,12 @@ class FakeRepository:
         retire_missing: bool,
     ) -> int:
         assert retire_missing is True
+        incoming_ids = {record.source_record_id for record in records}
+        self.retired_record_ids.update(
+            record.source_record_id
+            for record in self.records
+            if record.source_record_id not in incoming_ids
+        )
         self.records = records
         return len(records)
 
@@ -195,6 +202,45 @@ async def test_retry_failure_preserves_lkg_and_opens_circuit(
     assert open_until is not None
     assert repository.stale_reason is not None
     assert "Showing cached information" in repository.stale_reason
+    await ingestion.client.aclose()
+
+
+async def test_failed_poll_preserves_lkg_then_success_retires_absent_membership(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ingestion, _ = runner(tmp_path)
+    repository = FakeRepository(has_records=True)
+    repository.records = [record().model_copy(update={"source_record_id": "old-active"})]
+    previous = SourceHealth(
+        source_id="pulsepoint",
+        source_name="PulsePoint advisory",
+        state=SourceHealthState.HEALTHY,
+        last_attempt=NOW,
+        last_success=NOW,
+        last_authoritative_observation=NOW,
+        poll_interval_seconds=15,
+        consecutive_failures=0,
+        last_known_good=True,
+        authority_level=AuthorityLevel.ADVISORY,
+        circuit_breaker_state=CircuitState.CLOSED,
+    )
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("app.ingestion.asyncio.sleep", no_sleep)
+    failed = DummyAdapter(error=httpx.ConnectTimeout("upstream unavailable"))
+    assert await ingestion._attempt(failed, repository, previous) == 0
+    assert [item.source_record_id for item in repository.records] == ["old-active"]
+    assert repository.retired_record_ids == set()
+    assert repository.stale_reason is not None
+
+    failure_health = repository.health[-1][0]
+    assert await ingestion._attempt(DummyAdapter(), repository, failure_health) == 1
+    assert [item.source_record_id for item in repository.records] == ["1"]
+    assert repository.retired_record_ids == {"old-active"}
+    assert repository.health[-1][0].state is SourceHealthState.HEALTHY
     await ingestion.client.aclose()
 
 

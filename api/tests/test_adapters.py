@@ -22,7 +22,10 @@ def load_json(name: str) -> dict:
 
 
 def test_pulsepoint_fixture_preserves_advisory_disclaimer_and_units() -> None:
-    records = PulsePointAdapter().normalize(load_json("pulsepoint.json"), "a" * 64)
+    adapter = PulsePointAdapter()
+    records = adapter.normalize(load_json("pulsepoint.json"), "a" * 64)
+
+    assert adapter.retire_missing is True
     assert records[0].payload["disclaimer"] == "PulsePoint advisory feed — not official CAD"
     assert records[0].payload["units"][0]["status"] == "Dispatched"
 

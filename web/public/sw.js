@@ -39,17 +39,23 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(async () => {
           const cached = await caches.match(event.request)
-          return (
-            cached ??
-            new Response(
-              JSON.stringify({
-                detail: 'No cached dashboard snapshot is available.',
-              }),
-              {
-                status: 503,
-                headers: {'Content-Type': 'application/json'},
-              },
-            )
+          if (cached) {
+            const headers = new Headers(cached.headers)
+            headers.set('X-EOC-Cache', 'hit')
+            return new Response(cached.body, {
+              status: cached.status,
+              statusText: cached.statusText,
+              headers,
+            })
+          }
+          return new Response(
+            JSON.stringify({
+              detail: 'No cached dashboard snapshot is available.',
+            }),
+            {
+              status: 503,
+              headers: {'Content-Type': 'application/json'},
+            },
           )
         }),
     )

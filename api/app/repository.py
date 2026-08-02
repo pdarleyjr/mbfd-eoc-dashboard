@@ -54,15 +54,16 @@ class Repository:
             )
             await self.session.execute(statement)
         if retire_missing:
+            now = datetime.now(UTC)
             missing_query = select(CanonicalRecordRow).where(
-                CanonicalRecordRow.source_id == source_id
+                CanonicalRecordRow.source_id == source_id,
+                (CanonicalRecordRow.expires_at.is_(None)) | (CanonicalRecordRow.expires_at > now),
             )
             if seen:
                 missing_query = missing_query.where(
                     CanonicalRecordRow.source_record_id.not_in(seen)
                 )
             existing = await self.session.scalars(missing_query)
-            now = datetime.now(UTC)
             for row in existing:
                 # A successful complete source response is authoritative about
                 # membership. Retire absent rows immediately even when an old
