@@ -21,6 +21,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import Scope
 
+from .ai import GatewayGroundingError, GatewayNormalizer, load_gateway_credential
 from .api import router
 from .config import get_settings
 from .database import engine
@@ -159,23 +160,8 @@ async def ready(request: Request) -> JSONResponse:
     except Exception:
         checks["redis"] = "unavailable"
         critical_healthy = False
+    checks["ai_grounding"] = "separate"
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{str(settings.ollama_url).rstrip('/')}/api/tags",
-                timeout=3,
-            )
-            response.raise_for_status()
-            model_names = {
-                model.get("name")
-                for model in response.json().get("models", [])
-                if isinstance(model, dict)
-            }
-            checks["ollama"] = (
-                "healthy" if settings.ollama_model in model_names else "model_unavailable"
-            )
-        except (httpx.HTTPError, ValueError, TypeError):
-            checks["ollama"] = "unavailable"
         if settings.maxun_enabled:
             try:
                 response = await client.get(
@@ -199,6 +185,40 @@ async def ready(request: Request) -> JSONResponse:
     return JSONResponse(
         status_code=status,
         content={"status": "ready" if status == 200 else "not_ready", "checks": checks},
+    )
+
+
+@app.get("/health/ai")
+async def ai_ready() -> JSONResponse:
+    if not settings.ai_grounding_enabled:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "disabled",
+                "capability": settings.ai_capability,
+            },
+        )
+
+    normalizer = GatewayNormalizer(
+        str(settings.ai_gateway_url),
+        settings.ai_capability,
+        load_gateway_credential(settings.ai_gateway_credential_file),
+    )
+    try:
+        result = await normalizer.readiness()
+    except GatewayGroundingError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unavailable",
+                "capability": settings.ai_capability,
+            },
+        )
+    finally:
+        await normalizer.close()
+    return JSONResponse(
+        status_code=200 if result["status"] == "ready" else 503,
+        content=result,
     )
 
 

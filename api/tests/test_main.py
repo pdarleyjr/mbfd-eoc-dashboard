@@ -1,10 +1,11 @@
+import inspect
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.main import SpaStaticFiles, app
+from app.main import SpaStaticFiles, app, ready
 
 
 def test_security_policy_allows_official_fl511_map_images() -> None:
@@ -45,3 +46,20 @@ def test_spa_fallback_preserves_extensionless_client_routes(tmp_path: Path) -> N
 
     assert response.status_code == 200
     assert response.text == "<main>dashboard shell</main>"
+
+
+def test_core_readiness_has_no_ai_network_dependency() -> None:
+    source = inspect.getsource(ready)
+
+    assert "ollama" not in source.lower()
+    assert "ai_gateway" not in source.lower()
+
+
+def test_ai_readiness_is_separate_and_disabled_by_default() -> None:
+    response = TestClient(app, base_url="http://localhost").get("/health/ai")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "disabled",
+        "capability": "mbfd-eoc-grounding",
+    }
