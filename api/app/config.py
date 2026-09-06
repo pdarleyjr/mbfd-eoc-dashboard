@@ -1,6 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     pulsepoint_url: AnyHttpUrl = AnyHttpUrl(
         "https://pulsepoint-proxy.pdarleyjr.workers.dev/incidents"
     )
-    ollama_url: AnyHttpUrl = AnyHttpUrl("http://172.20.0.1:11437")
-    ollama_model: str = "qwen3.5:9b"
+    ai_grounding_enabled: bool = False
+    ai_gateway_url: AnyHttpUrl = AnyHttpUrl("http://172.20.0.1:11440")
+    ai_capability: Literal["mbfd-eoc-grounding"] = "mbfd-eoc-grounding"
+    ai_gateway_credential_file: Path = Path("/run/secrets/eoc-ai-gateway-token")
     maxun_url: AnyHttpUrl = AnyHttpUrl("http://eoc-maxun-backend:8080")
     maxun_enabled: bool = False
     hermes_health_url: str = ""

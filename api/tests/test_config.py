@@ -3,11 +3,15 @@ import pytest
 from app.config import Settings
 
 
-def test_settings_default_to_dedicated_eoc_ollama() -> None:
+def test_settings_default_to_disabled_gateway_grounding_contract() -> None:
     settings = Settings(_env_file=None)
 
-    assert str(settings.ollama_url) == "http://172.20.0.1:11437/"
-    assert settings.ollama_model == "qwen3.5:9b"
+    assert settings.ai_grounding_enabled is False
+    assert str(settings.ai_gateway_url) == "http://172.20.0.1:11440/"
+    assert settings.ai_capability == "mbfd-eoc-grounding"
+    assert settings.ai_gateway_credential_file.as_posix() == ("/run/secrets/eoc-ai-gateway-token")
+    assert not hasattr(settings, "ollama_url")
+    assert not hasattr(settings, "ollama_model")
     assert settings.eia_api_key.get_secret_value() == ""
 
 
